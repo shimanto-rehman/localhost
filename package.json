@@ -1,0 +1,13 @@
+{
+  "name": "localhost",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Apartment bill splitter with server-side persistence",
+  "scripts": {
+    "dev": "node dev-server.mjs"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.0"
+  }
+}
