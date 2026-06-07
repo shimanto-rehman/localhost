@@ -4,12 +4,21 @@ import path from 'path';
 
 const STORE_KEY = 'sharespace:store';
 const LOCAL_FILE = path.join(process.cwd(), 'data', 'store.json');
+const STORAGE_ERROR = 'Storage not configured. Add Upstash Redis to your Vercel project (Storage → Marketplace → Upstash Redis), then redeploy.';
+
+function isVercel() {
+  return !!process.env.VERCEL;
+}
 
 function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   return new Redis({ url, token });
+}
+
+function hasPersistentStorage() {
+  return !!getRedis() || !isVercel();
 }
 
 function defaultState() {
@@ -41,13 +50,6 @@ function seedDefaults(data) {
   if (parvez && !data.config.rentSplit[parvez.id]) {
     data.config.rentSplit[parvez.id] = 6500;
   }
-  if (!data.bills['2026-06']) {
-    data.bills['2026-06'] = {
-      electricity: 910,
-      locked: true,
-      savedAt: new Date().toISOString()
-    };
-  }
   return data;
 }
 
@@ -57,6 +59,7 @@ async function readStore() {
     const data = await redis.get(STORE_KEY);
     return data || null;
   }
+  if (isVercel()) return null;
   try {
     if (fs.existsSync(LOCAL_FILE)) {
       return JSON.parse(fs.readFileSync(LOCAL_FILE, 'utf8'));
@@ -71,6 +74,11 @@ async function writeStore(data) {
     await redis.set(STORE_KEY, data);
     return;
   }
+  if (isVercel()) {
+    const err = new Error(STORAGE_ERROR);
+    err.code = 'STORAGE_NOT_CONFIGURED';
+    throw err;
+  }
   const dir = path.dirname(LOCAL_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(LOCAL_FILE, JSON.stringify(data, null, 2));
@@ -82,7 +90,32 @@ async function deleteStore() {
     await redis.del(STORE_KEY);
     return;
   }
+  if (isVercel()) {
+    const err = new Error(STORAGE_ERROR);
+    err.code = 'STORAGE_NOT_CONFIGURED';
+    throw err;
+  }
   if (fs.existsSync(LOCAL_FILE)) fs.unlinkSync(LOCAL_FILE);
+}
+
+async function loadOrCreateStore() {
+  let data = await readStore();
+  if (data) return data;
+  if (!hasPersistentStorage()) {
+    const err = new Error(STORAGE_ERROR);
+    err.code = 'STORAGE_NOT_CONFIGURED';
+    throw err;
+  }
+  data = seedDefaults(defaultState());
+  await writeStore(data);
+  return data;
+}
+
+function storageErrorResponse(res, err) {
+  if (err.code === 'STORAGE_NOT_CONFIGURED') {
+    return res.status(503).json({ error: STORAGE_ERROR, code: 'STORAGE_NOT_CONFIGURED' });
+  }
+  return res.status(500).json({ error: err.message || 'Server error' });
 }
 
 export default async function handler(req, res) {
@@ -94,11 +127,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      let data = await readStore();
-      if (!data) {
-        data = seedDefaults(defaultState());
-        await writeStore(data);
-      }
+      const data = await loadOrCreateStore();
       return res.status(200).json(data);
     }
 
@@ -113,7 +142,13 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const { action, payload } = req.body || {};
-      let data = (await readStore()) || seedDefaults(defaultState());
+      let data = await readStore();
+      if (!data) {
+        if (!hasPersistentStorage()) {
+          return res.status(503).json({ error: STORAGE_ERROR, code: 'STORAGE_NOT_CONFIGURED' });
+        }
+        data = seedDefaults(defaultState());
+      }
 
       if (action === 'saveConfig') {
         if (payload.config) data.config = { ...data.config, ...payload.config };
@@ -129,13 +164,26 @@ export default async function handler(req, res) {
         }
         const existing = data.bills[monthKey];
         if (existing && existing.locked) {
-          return res.status(403).json({ error: 'Bill already locked. Use reset to change.' });
+          return res.status(403).json({ error: 'Bill already locked. Unlock that month in Configuration → Danger Zone.' });
         }
         data.bills[monthKey] = {
           electricity: Number(electricity),
           locked: true,
           savedAt: new Date().toISOString()
         };
+        await writeStore(data);
+        return res.status(200).json({ ok: true, data });
+      }
+
+      if (action === 'resetBillMonth') {
+        const { monthKey } = payload || {};
+        if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+          return res.status(400).json({ error: 'Invalid month selected' });
+        }
+        if (!data.bills[monthKey]) {
+          return res.status(404).json({ error: 'No locked bill found for that month' });
+        }
+        delete data.bills[monthKey];
         await writeStore(data);
         return res.status(200).json({ ok: true, data });
       }
@@ -164,6 +212,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: err.message || 'Server error' });
+    return storageErrorResponse(res, err);
   }
 }

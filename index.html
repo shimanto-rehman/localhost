@@ -263,6 +263,17 @@
         <div class="config-block danger-block">
           <div class="config-block__head">⚠ Danger Zone</div>
           <div class="config-block__body">
+            <div class="danger-row danger-row--stack">
+              <div>
+                <div class="danger-row__title">Unlock Single Month</div>
+                <div class="danger-row__desc">Remove a locked electricity bill for one month so you can enter it again.</div>
+                <div class="reset-month-row">
+                  <select class="form-input" id="resetMonthSelect" aria-label="Month to unlock"></select>
+                  <select class="form-input" id="resetYearSelect" aria-label="Year to unlock"></select>
+                </div>
+              </div>
+              <button class="btn btn-danger btn-sm" id="resetMonthBtn">Unlock Month</button>
+            </div>
             <div class="danger-row">
               <div>
                 <div class="danger-row__title">Reset All Bill Data</div>

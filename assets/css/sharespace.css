@@ -366,6 +366,9 @@ body.sidebar-open { overflow: hidden; }
 .danger-row:last-child { border-bottom: none; }
 .danger-row__title { font-family: var(--font-head); font-weight: 700; font-size: 14px; }
 .danger-row__desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.danger-row--stack { align-items: flex-start; }
+.reset-month-row { display: flex; gap: 10px; margin-top: 12px; max-width: 320px; }
+.reset-month-row .form-input { flex: 1; min-width: 0; padding: 10px 12px; }
 
 .chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 600; font-family: var(--font-head); }
 .chip--accent { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(45, 212, 191, 0.22); }

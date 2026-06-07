@@ -18,10 +18,21 @@ let newMemberPhoto = '';
 let confirmCallback = null;
 
 /* ── API ── */
+async function parseApiResponse(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.error || 'Request failed';
+    if (data.code === 'STORAGE_NOT_CONFIGURED' || /read-only file system|EROFS/i.test(msg)) {
+      throw new Error('Server storage is not set up. In Vercel → Storage → add Upstash Redis, then redeploy.');
+    }
+    throw new Error(msg);
+  }
+  return data;
+}
+
 async function apiGet() {
   const res = await fetch(API);
-  if (!res.ok) throw new Error('Failed to load data');
-  return res.json();
+  return parseApiResponse(res);
 }
 
 async function apiSaveConfig(config, members) {
@@ -30,8 +41,7 @@ async function apiSaveConfig(config, members) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'saveConfig', payload: { config, members } })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Save failed');
+  const data = await parseApiResponse(res);
   return data.data;
 }
 
@@ -41,8 +51,7 @@ async function apiSaveBill(monthKey, electricity) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'saveBill', payload: { monthKey, electricity } })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Save failed');
+  const data = await parseApiResponse(res);
   return data.data;
 }
 
@@ -52,8 +61,17 @@ async function apiResetBills() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'resetBills' })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Reset failed');
+  const data = await parseApiResponse(res);
+  return data.data;
+}
+
+async function apiResetBillMonth(monthKey) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'resetBillMonth', payload: { monthKey } })
+  });
+  const data = await parseApiResponse(res);
   return data.data;
 }
 
@@ -63,8 +81,7 @@ async function apiResetAll() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'resetAll' })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Reset failed');
+  const data = await parseApiResponse(res);
   return data.data;
 }
 
@@ -213,6 +230,27 @@ function toast(msg, type = 'success') {
     el.classList.add('hide');
     setTimeout(() => el.remove(), 300);
   }, 3200);
+}
+
+function populateResetMonthPickers() {
+  const monthSel = document.getElementById('resetMonthSelect');
+  const yearSel = document.getElementById('resetYearSelect');
+  if (!monthSel || !yearSel) return;
+
+  const now = new Date();
+  if (!monthSel.options.length) {
+    monthSel.innerHTML = MONTH_NAMES.map((name, i) =>
+      `<option value="${String(i + 1).padStart(2, '0')}"${i === now.getMonth() ? ' selected' : ''}>${name}</option>`
+    ).join('');
+  }
+  if (!yearSel.options.length) {
+    const start = now.getFullYear() - 2;
+    const end = now.getFullYear() + 2;
+    yearSel.innerHTML = Array.from({ length: end - start + 1 }, (_, i) => {
+      const y = start + i;
+      return `<option value="${y}"${y === now.getFullYear() ? ' selected' : ''}>${y}</option>`;
+    }).join('');
+  }
 }
 
 function confirmDialog(title, desc, cb) {
@@ -826,6 +864,7 @@ function updateMonthDisplay() {
 
 /* ── Settings ── */
 function renderSettings() {
+  populateResetMonthPickers();
   renderMembersConfig();
   renderFixedCostsConfig();
   renderRentSplitConfig();
@@ -941,6 +980,7 @@ function renderRentSplitConfig() {
 /* ── Event Bindings ── */
 function bindEvents() {
   initTheme();
+  populateResetMonthPickers();
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
 
   lastLayoutBucket = getLayoutBucket();
@@ -1087,6 +1127,23 @@ function bindEvents() {
       try {
         STATE = await apiResetBills();
         toast('All bill data reset');
+        updateMonthDisplay();
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    });
+  });
+
+  document.getElementById('resetMonthBtn').addEventListener('click', () => {
+    const month = document.getElementById('resetMonthSelect').value;
+    const year = document.getElementById('resetYearSelect').value;
+    const key = `${year}-${month}`;
+    const label = `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
+    confirmDialog(`Unlock ${label}?`, 'This removes the locked electricity bill for that month so you can enter it again.', async () => {
+      try {
+        STATE = await apiResetBillMonth(key);
+        toast(`${label} unlocked`);
+        if (monthKey(currentBillMonth) === key) updateMonthDisplay();
       } catch (e) {
         toast(e.message, 'error');
       }
@@ -1136,7 +1193,7 @@ async function init() {
     document.getElementById('syncDot').classList.remove('offline');
   } catch (e) {
     document.getElementById('syncDot').classList.add('offline');
-    toast('Could not connect to server — check deployment', 'error');
+    toast(e.message.includes('Redis') || e.message.includes('storage') ? e.message : 'Could not connect to server — check deployment', 'error');
     STATE = {
       config: {
         aptName: 'H-38, R-13, Nikunja-2, Dhaka-1229',

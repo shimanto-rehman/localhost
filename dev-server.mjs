@@ -43,9 +43,6 @@ function defaultState() {
 function seedDefaults(data) {
   const parvez = data.members.find(m => m.name === 'Parvez');
   if (parvez && !data.config.rentSplit[parvez.id]) data.config.rentSplit[parvez.id] = 6500;
-  if (!data.bills['2026-06']) {
-    data.bills['2026-06'] = { electricity: 910, locked: true, savedAt: new Date().toISOString() };
-  }
   return data;
 }
 
@@ -101,6 +98,21 @@ function handleApi(req, res, body) {
     }
     if (action === 'resetBills') {
       data.bills = {};
+      writeStore(data);
+      res.writeHead(200);
+      return res.end(JSON.stringify({ ok: true, data }));
+    }
+    if (action === 'resetBillMonth') {
+      const { monthKey } = payload || {};
+      if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+        res.writeHead(400);
+        return res.end(JSON.stringify({ error: 'Invalid month selected' }));
+      }
+      if (!data.bills[monthKey]) {
+        res.writeHead(404);
+        return res.end(JSON.stringify({ error: 'No locked bill found for that month' }));
+      }
+      delete data.bills[monthKey];
       writeStore(data);
       res.writeHead(200);
       return res.end(JSON.stringify({ ok: true, data }));
