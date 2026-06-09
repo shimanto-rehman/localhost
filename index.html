@@ -61,14 +61,17 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         Monthly Bills
       </button>
+      <button class="nav-link" data-page="expenses">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="18" y2="15"/></svg>
+        Expenses
+      </button>
       <button class="nav-link" data-page="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Configuration
       </button>
     </nav>
     <div class="sidebar__footer">
-      <span class="sync-dot" id="syncDot" title="Server sync"></span>
-      localhost v1.0
+      <div class="sidebar-user" id="sidebarUser"></div>
     </div>
   </aside>
 
@@ -103,7 +106,7 @@
               <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
               Monthly Total Cost
             </div>
-            <div class="card__sub">Full year overview — all bills combined</div>
+            <div class="card__sub">Full year overview — all bills + expenses combined</div>
             <div class="chart-box"><canvas id="chartMonthly"></canvas></div>
           </div>
           <div class="card">
@@ -138,9 +141,9 @@
       <div class="card card--spaced">
         <div class="card__title">
           <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
-          Member Comparison by Month
+          Member Expense Contributions
         </div>
-        <div class="card__sub">Stacked monthly breakdown per flatmate</div>
+        <div class="card__sub">Monthly spending per flatmate — lowest spender sets the base</div>
         <div class="chart-box chart-box--tall"><canvas id="chartCompare"></canvas></div>
       </div>
 
@@ -182,11 +185,31 @@
       </div>
     </section>
 
+    <section class="page" id="page-expenses">
+      <div class="month-panel">
+        <div class="month-panel__header">
+          <button class="month-nav-btn" id="prevExpenseMonth" aria-label="Previous month">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="month-panel__header-inner">
+            <div class="month-panel__label" id="expenseMonthNavLabel">June</div>
+            <div class="month-panel__year" id="expenseMonthNavYear">2026 · Expense Period</div>
+          </div>
+          <button class="month-nav-btn" id="nextExpenseMonth" aria-label="Next month">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="month-panel__body" id="expenseMonthBody"></div>
+      </div>
+    </section>
+
     <section class="page" id="page-settings">
+      <div id="settingsReadonlyBanner"></div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="members">Members</button>
         <button class="tab-btn" data-tab="costs">Fixed Costs</button>
         <button class="tab-btn" data-tab="rent">Rent Split</button>
+        <button class="tab-btn" data-tab="backup">Backup</button>
         <button class="tab-btn" data-tab="danger">Danger Zone</button>
       </div>
 
@@ -259,6 +282,31 @@
         </div>
       </div>
 
+      <div id="tab-backup" style="display:none">
+        <div class="config-block backup-block">
+          <div class="config-block__head">Data Backup</div>
+          <div class="config-block__body">
+            <div class="backup-row">
+              <div>
+                <div class="backup-row__title">Export Backup</div>
+                <div class="backup-row__desc">Download a full snapshot — members, bills, config, passwords, and sessions.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" id="exportBackupBtn" type="button">Export</button>
+            </div>
+            <div class="backup-row">
+              <div>
+                <div class="backup-row__title">Restore from File</div>
+                <div class="backup-row__desc">Replace all current data with a backup JSON file. This cannot be undone.</div>
+              </div>
+              <div class="backup-restore-actions">
+                <input type="file" accept=".json,application/json" id="backupFileInput" class="backup-file-input" hidden/>
+                <button class="btn btn-danger btn-sm" id="restoreBackupBtn" type="button">Restore</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="tab-danger" style="display:none">
         <div class="config-block danger-block">
           <div class="config-block__head">⚠ Danger Zone</div>
@@ -305,6 +353,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Bills
     </button>
+    <button class="bottom-nav__btn" data-page="expenses">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      Expenses
+    </button>
     <button class="bottom-nav__btn" data-page="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       Settings
@@ -336,6 +388,24 @@
     <div class="modal__actions">
       <button class="btn btn-ghost btn-sm" id="cancelAdd">Cancel</button>
       <button class="btn btn-primary btn-sm" id="confirmAdd">Add Member</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="loginModal">
+  <div class="modal modal--login">
+    <div class="modal__title">Sign in</div>
+    <div class="modal__sub">Tap your profile, then enter your password.</div>
+    <div class="login-bubble-stage" role="listbox" aria-label="Select member">
+      <div class="login-bubble-field" id="loginMemberGrid"></div>
+    </div>
+    <div class="login-password-wrap">
+      <label class="form-label" for="loginPassword">Password</label>
+      <input class="form-input" type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password"/>
+    </div>
+    <div class="modal__actions">
+      <button class="btn btn-ghost btn-sm" id="loginCancel" type="button">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="loginSubmit" type="button">Sign in</button>
     </div>
   </div>
 </div>
