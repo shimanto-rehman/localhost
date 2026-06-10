@@ -1,427 +1,533 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="localhost — Smart apartment bill splitter for flatmates"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="localhost — Smart apartment bill splitter for flatmates" />
   <title>localhost — Apartment Bill Splitter</title>
-  <link rel="icon" href="/favicon.ico" sizes="any"/>
-  <link rel="shortcut icon" href="/favicon.ico"/>
-  <link rel="stylesheet" href="/assets/css/fonts.css"/>
-  <link rel="stylesheet" href="/assets/css/sharespace.css"/>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/assets/css/fonts.css" />
+  <link rel="stylesheet" href="/assets/css/localhost.css" />
 </head>
+
 <body>
 
-<div class="loader-overlay" id="loader" role="status" aria-live="polite" aria-label="Loading localhost">
-  <div class="loader-pulse">
-    <span class="loader-pulse__ring loader-pulse__ring--1"></span>
-    <span class="loader-pulse__ring loader-pulse__ring--2"></span>
-    <span class="loader-pulse__ring loader-pulse__ring--3"></span>
-    <div class="loader-pulse__core">
-      <img class="loader-pulse__logo" src="/assets/images/Logo.png" alt="" width="54" height="54"/>
-    </div>
-  </div>
-  <div class="loader-wave" aria-hidden="true">
-    <svg viewBox="0 0 140 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path class="loader-wave__track" d="M0 14 H24 L32 6 L40 22 L48 14 H140"/>
-      <path class="loader-wave__path" d="M0 14 H24 L32 6 L40 22 L48 14 H140"/>
-    </svg>
-  </div>
-  <div class="loader-meta">
-    <div class="loader-text">localhost</div>
-    <div class="loader-sub">Preparing your dashboard</div>
-  </div>
-  <div class="loader-progress" aria-hidden="true"><span class="loader-progress__bar"></span></div>
-</div>
-
-<div class="ambient">
-  <div class="ambient__orb ambient__orb--1"></div>
-  <div class="ambient__orb ambient__orb--2"></div>
-  <div class="ambient__grid"></div>
-</div>
-
-<div class="app">
-  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar__brand">
-      <div class="sidebar__logo">
-        <img class="sidebar__logo-img" src="/assets/images/Logo.png" alt="localhost logo" width="44" height="44"/>
-      </div>
-      <div>
-        <div class="sidebar__title">localhost</div>
-        <div class="sidebar__tagline">Bill Splitter</div>
+  <div class="loader-overlay" id="loader" role="status" aria-live="polite" aria-label="Loading localhost">
+    <div class="loader-pulse">
+      <span class="loader-pulse__ring loader-pulse__ring--1"></span>
+      <span class="loader-pulse__ring loader-pulse__ring--2"></span>
+      <span class="loader-pulse__ring loader-pulse__ring--3"></span>
+      <div class="loader-pulse__core">
+        <img class="loader-pulse__logo" src="/assets/images/Logo.png" alt="" width="54" height="54" />
       </div>
     </div>
-    <nav class="sidebar__nav">
-      <button class="nav-link active" data-page="dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        Dashboard
-      </button>
-      <button class="nav-link" data-page="bills">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Monthly Bills
-      </button>
-      <button class="nav-link" data-page="expenses">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="18" y2="15"/></svg>
-        Expenses
-      </button>
-      <button class="nav-link" data-page="settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Configuration
-      </button>
-    </nav>
-    <div class="sidebar__footer">
-      <div class="sidebar-user" id="sidebarUser"></div>
+    <div class="loader-wave" aria-hidden="true">
+      <svg viewBox="0 0 140 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="loader-wave__track" d="M0 14 H24 L32 6 L40 22 L48 14 H140" />
+        <path class="loader-wave__path" d="M0 14 H24 L32 6 L40 22 L48 14 H140" />
+      </svg>
     </div>
-  </aside>
+    <div class="loader-meta">
+      <div class="loader-text">localhost</div>
+      <div class="loader-sub">Preparing your dashboard</div>
+    </div>
+    <div class="loader-progress" aria-hidden="true"><span class="loader-progress__bar"></span></div>
+  </div>
 
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar__left">
-        <button class="topbar__menu" id="menuBtn" aria-label="Menu">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  <div class="ambient">
+    <div class="ambient__orb ambient__orb--1"></div>
+    <div class="ambient__orb ambient__orb--2"></div>
+    <div class="ambient__grid"></div>
+  </div>
+
+  <div class="app">
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__brand">
+        <div class="sidebar__logo">
+          <img class="sidebar__logo-img" src="/assets/images/Logo.png" alt="localhost logo" width="44" height="44" />
+        </div>
+        <div>
+          <div class="sidebar__title">localhost</div>
+          <div class="sidebar__tagline">Bill Splitter</div>
+        </div>
+      </div>
+      <nav class="sidebar__nav">
+        <button class="nav-link active" data-page="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+          Dashboard
         </button>
-        <div class="topbar__titles">
-          <div class="topbar__heading" id="topbarTitle">Dashboard</div>
-          <div class="topbar__sub" id="topbarSub">H-38, R-13, Nikunja-2, Dhaka-1229</div>
-        </div>
-      </div>
-      <div class="topbar__right">
-        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
-          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <button class="nav-link" data-page="bills">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          Monthly Bills
         </button>
-        <span class="badge-pill" id="aptBadge">7TH FLOOR</span>
-        <div class="avatar-stack" id="avatarStack"></div>
+        <button class="nav-link" data-page="expenses">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+            <line x1="6" y1="15" x2="10" y2="15" />
+            <line x1="14" y1="15" x2="18" y2="15" />
+          </svg>
+          Expenses
+        </button>
+        <button class="nav-link" data-page="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          Configuration
+        </button>
+      </nav>
+      <div class="sidebar__footer">
+        <div class="sidebar-user" id="sidebarUser"></div>
       </div>
-    </header>
+    </aside>
 
-    <section class="page active" id="page-dashboard">
-      <div class="stats-row" id="statsRow"></div>
-
-      <div class="grid-stack">
-        <div class="grid-2">
-          <div class="card">
-            <div class="card__title">
-              <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-              Monthly Total Cost
-            </div>
-            <div class="card__sub">Full year overview — all bills + expenses combined</div>
-            <div class="chart-box"><canvas id="chartMonthly"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card__title">
-              <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
-              Per-Person Contribution
-            </div>
-            <div class="card__sub">Cumulative share per member this year</div>
-            <div class="chart-box"><canvas id="chartPerson"></canvas></div>
-          </div>
-        </div>
-        <div class="grid-2">
-          <div class="card">
-            <div class="card__title">
-              <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/><path d="M12 2a10 10 0 0 0 0 20"/></svg></span>
-              Bill Category Breakdown
-            </div>
-            <div class="card__sub">Yearly cost distribution by type</div>
-            <div class="chart-box"><canvas id="chartCategory"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card__title">
-              <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-              Electricity Trend
-            </div>
-            <div class="card__sub">Monthly electricity bills across the year</div>
-            <div class="chart-box"><canvas id="chartElec"></canvas></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card card--spaced">
-        <div class="card__title">
-          <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
-          Member Expense Contributions
-        </div>
-        <div class="card__sub">Monthly spending per flatmate — lowest spender sets the base</div>
-        <div class="chart-box chart-box--tall"><canvas id="chartCompare"></canvas></div>
-      </div>
-
-      <div class="section-head">
-        <div class="section-head__title">Member Bills <span>Current Month</span></div>
-        <span class="chip chip--accent" id="currentMonthChip">—</span>
-      </div>
-      <div class="grid-3" id="memberBillsGrid"></div>
-
-      <div class="card card--spaced-top">
-        <div class="card__title">
-          <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></span>
-          Rounding Gap (Ceiling Split)
-        </div>
-        <div class="card__sub">Extra collected vs actual bill — from rounding per-head costs up</div>
-        <div class="gap-stat">
-          <span class="gap-stat__year" id="yearGapTotal">—</span>
-          <span class="gap-stat__hint">total gap this year</span>
-        </div>
-        <div class="chart-box chart-box--sm chart-box--gap"><canvas id="chartGap"></canvas></div>
-      </div>
-    </section>
-
-    <section class="page" id="page-bills">
-      <div class="month-panel">
-        <div class="month-panel__header">
-          <button class="month-nav-btn" id="prevMonth" aria-label="Previous month">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar__left">
+          <button class="topbar__menu" id="menuBtn" aria-label="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
           </button>
-          <div class="month-panel__header-inner">
-            <div class="month-panel__label" id="monthNavLabel">June</div>
-            <div class="month-panel__year" id="monthNavYear">2026 · Billing Period</div>
+          <div class="topbar__titles">
+            <div class="topbar__heading" id="topbarTitle">Dashboard</div>
+            <div class="topbar__sub" id="topbarSub">H-38, R-13, Nikunja-2, Dhaka-1229</div>
           </div>
-          <button class="month-nav-btn" id="nextMonth" aria-label="Next month">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="topbar__right">
+          <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
+            <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+            <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
           </button>
+          <span class="badge-pill" id="aptBadge">7TH FLOOR</span>
+          <div class="avatar-stack" id="avatarStack"></div>
         </div>
-        <div class="month-panel__body" id="monthBody"></div>
-      </div>
-    </section>
+      </header>
 
-    <section class="page" id="page-expenses">
-      <div class="month-panel">
-        <div class="month-panel__header">
-          <button class="month-nav-btn" id="prevExpenseMonth" aria-label="Previous month">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div class="month-panel__header-inner">
-            <div class="month-panel__label" id="expenseMonthNavLabel">June</div>
-            <div class="month-panel__year" id="expenseMonthNavYear">2026 · Expense Period</div>
-          </div>
-          <button class="month-nav-btn" id="nextExpenseMonth" aria-label="Next month">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-        <div class="month-panel__body" id="expenseMonthBody"></div>
-      </div>
-    </section>
+      <section class="page active" id="page-dashboard">
+        <div class="stats-row" id="statsRow"></div>
 
-    <section class="page" id="page-settings">
-      <div id="settingsReadonlyBanner"></div>
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="members">Members</button>
-        <button class="tab-btn" data-tab="costs">Fixed Costs</button>
-        <button class="tab-btn" data-tab="rent">Rent Split</button>
-        <button class="tab-btn" data-tab="backup">Backup</button>
-        <button class="tab-btn" data-tab="danger">Danger Zone</button>
-      </div>
-
-      <div id="tab-members">
-        <div class="panel-head">
-          <div>
-            <div class="panel-head__title">Apartment Members</div>
-            <div class="form-hint panel-head__hint">Add photos and names — shown across dashboard &amp; bills</div>
-          </div>
-          <button class="btn btn-primary btn-sm" id="addMemberBtn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Member
-          </button>
-        </div>
-        <div class="members-grid" id="membersGrid"></div>
-        <div class="actions-row">
-          <button class="btn btn-primary" id="saveMembersBtn">Save Members</button>
-        </div>
-      </div>
-
-      <div id="tab-costs" style="display:none">
-        <div class="config-block">
-          <div class="config-block__head">Apartment Details</div>
-          <div class="config-block__body">
-            <div class="form-grid form-grid--2">
-              <div>
-                <label class="form-label">Apartment Address</label>
-                <input class="form-input" id="cfgAptName" placeholder="H-38, R-13, Nikunja-2"/>
+        <div class="grid-stack">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card__title">
+                <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg></span>
+                Monthly Total Cost
               </div>
-              <div>
-                <label class="form-label">Floor / Unit Badge</label>
-                <input class="form-input" id="cfgAptFloor" placeholder="7TH FLOOR"/>
+              <div class="card__sub">Full year overview — all bills + expenses combined</div>
+              <div class="chart-box"><canvas id="chartMonthly"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card__title">
+                <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                  </svg></span>
+                Per-Person Contribution
               </div>
+              <div class="card__sub">Cumulative share per member this year</div>
+              <div class="chart-box"><canvas id="chartPerson"></canvas></div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card__title">
+                <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 2a10 10 0 0 1 0 20" />
+                    <path d="M12 2a10 10 0 0 0 0 20" />
+                  </svg></span>
+                Bill Category Breakdown
+              </div>
+              <div class="card__sub">Yearly cost distribution by type</div>
+              <div class="chart-box"><canvas id="chartCategory"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card__title">
+                <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg></span>
+                Electricity Trend
+              </div>
+              <div class="card__sub">Monthly electricity bills across the year</div>
+              <div class="chart-box"><canvas id="chartElec"></canvas></div>
             </div>
           </div>
         </div>
-        <div class="config-block">
-          <div class="config-block__head">Monthly Fixed Costs</div>
-          <div class="config-block__body">
-            <p class="form-hint">Rent, Gas, Water &amp; Service form one bucket (split via Rent Split tab). Maid, WiFi &amp; Electricity are split equally per head using ceiling rounding.</p>
-            <div class="form-grid">
-              <div><label class="form-label">Base House Rent (৳)</label><input class="form-input" id="cfgRent" type="number" placeholder="20000"/></div>
-              <div><label class="form-label">Gas Bill (৳)</label><input class="form-input" id="cfgGas" type="number" placeholder="1080"/></div>
-              <div><label class="form-label">Water Bill (৳)</label><input class="form-input" id="cfgWater" type="number" placeholder="1000"/></div>
-              <div><label class="form-label">Service Charge (৳)</label><input class="form-input" id="cfgService" type="number" placeholder="2000"/></div>
-              <div><label class="form-label">House Maid (৳)</label><input class="form-input" id="cfgMaid" type="number" placeholder="2500"/></div>
-              <div><label class="form-label">WiFi Bill (৳)</label><input class="form-input" id="cfgWifi" type="number" placeholder="800"/></div>
-            </div>
-            <div class="actions-row">
-              <button class="btn btn-primary" id="saveCostsBtn">Save Fixed Costs</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div id="tab-rent" style="display:none">
-        <div class="config-block">
-          <div class="config-block__head">Rent Contribution Split</div>
-          <div class="config-block__body">
-            <div class="info-box">
-              <strong>How it works:</strong> A fixed amount covers <em>Rent + Gas + Water + Service</em> combined (e.g. Parvez pays ৳6,500 total for that bucket — nothing extra added on top).
-              The remainder is divided equally among members without a fixed amount.
-              Electricity, Maid &amp; WiFi are split equally among <em>all</em> members (ceiling rounded).
+        <div class="card card--spaced">
+          <div class="card__title">
+            <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
+              </svg></span>
+            Member Expense Contributions
+          </div>
+          <div class="card__sub">Monthly spending per flatmate — lowest spender sets the base</div>
+          <div class="chart-box chart-box--tall"><canvas id="chartCompare"></canvas></div>
+        </div>
+
+        <div class="section-head">
+          <div class="section-head__title">Member Bills <span>Current Month</span></div>
+          <span class="chip chip--accent" id="currentMonthChip">—</span>
+        </div>
+        <div class="grid-3" id="memberBillsGrid"></div>
+
+        <div class="card card--spaced-top">
+          <div class="card__title">
+            <span class="card__title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path
+                  d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg></span>
+            Rounding Gap (Ceiling Split)
+          </div>
+          <div class="card__sub">Extra collected vs actual bill — from rounding per-head costs up</div>
+          <div class="gap-stat">
+            <span class="gap-stat__year" id="yearGapTotal">—</span>
+            <span class="gap-stat__hint">total gap this year</span>
+          </div>
+          <div class="chart-box chart-box--sm chart-box--gap"><canvas id="chartGap"></canvas></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-bills">
+        <div class="month-panel">
+          <div class="month-panel__header">
+            <button class="month-nav-btn" id="prevMonth" aria-label="Previous month">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <div class="month-panel__header-inner">
+              <div class="month-panel__label" id="monthNavLabel">June</div>
+              <div class="month-panel__year" id="monthNavYear">2026 · Billing Period</div>
             </div>
-            <div class="rent-grid" id="rentSplitGrid"></div>
-            <div class="actions-row">
-              <button class="btn btn-primary" id="saveRentBtn">Save Rent Split</button>
+            <button class="month-nav-btn" id="nextMonth" aria-label="Next month">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+          <div class="month-panel__body" id="monthBody"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-expenses">
+        <div class="month-panel">
+          <div class="month-panel__header">
+            <button class="month-nav-btn" id="prevExpenseMonth" aria-label="Previous month">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <div class="month-panel__header-inner">
+              <div class="month-panel__label" id="expenseMonthNavLabel">June</div>
+              <div class="month-panel__year" id="expenseMonthNavYear">2026 · Expense Period</div>
             </div>
+            <button class="month-nav-btn" id="nextExpenseMonth" aria-label="Next month">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+          <div class="month-panel__body" id="expenseMonthBody"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-settings">
+        <div id="settingsReadonlyBanner"></div>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="members">Members</button>
+          <button class="tab-btn" data-tab="costs">Fixed Costs</button>
+          <button class="tab-btn" data-tab="rent">Rent Split</button>
+          <button class="tab-btn" data-tab="backup">Backup</button>
+          <button class="tab-btn" data-tab="danger">Danger Zone</button>
+        </div>
+
+        <div id="tab-members">
+          <div class="panel-head">
+            <div>
+              <div class="panel-head__title">Apartment Members</div>
+              <div class="form-hint panel-head__hint">Add photos and names — shown across dashboard &amp; bills</div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="addMemberBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Member
+            </button>
+          </div>
+          <div class="members-grid" id="membersGrid"></div>
+          <div class="actions-row">
+            <button class="btn btn-primary" id="saveMembersBtn">Save Members</button>
           </div>
         </div>
-      </div>
 
-      <div id="tab-backup" style="display:none">
-        <div class="config-block backup-block">
-          <div class="config-block__head">Data Backup</div>
-          <div class="config-block__body">
-            <div class="backup-row">
-              <div>
-                <div class="backup-row__title">Export Backup</div>
-                <div class="backup-row__desc">Download a full snapshot — members, bills, config, passwords, and sessions.</div>
-              </div>
-              <button class="btn btn-primary btn-sm" id="exportBackupBtn" type="button">Export</button>
-            </div>
-            <div class="backup-row">
-              <div>
-                <div class="backup-row__title">Restore from File</div>
-                <div class="backup-row__desc">Replace all current data with a backup JSON file. This cannot be undone.</div>
-              </div>
-              <div class="backup-restore-actions">
-                <input type="file" accept=".json,application/json" id="backupFileInput" class="backup-file-input" hidden/>
-                <button class="btn btn-danger btn-sm" id="restoreBackupBtn" type="button">Restore</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-danger" style="display:none">
-        <div class="config-block danger-block">
-          <div class="config-block__head">⚠ Danger Zone</div>
-          <div class="config-block__body">
-            <div class="danger-row danger-row--stack">
-              <div>
-                <div class="danger-row__title">Unlock Single Month</div>
-                <div class="danger-row__desc">Remove a locked electricity bill for one month so you can enter it again.</div>
-                <div class="reset-month-row">
-                  <select class="form-input" id="resetMonthSelect" aria-label="Month to unlock"></select>
-                  <select class="form-input" id="resetYearSelect" aria-label="Year to unlock"></select>
+        <div id="tab-costs" style="display:none">
+          <div class="config-block">
+            <div class="config-block__head">Apartment Details</div>
+            <div class="config-block__body">
+              <div class="form-grid form-grid--2">
+                <div>
+                  <label class="form-label">Apartment Address</label>
+                  <input class="form-input" id="cfgAptName" placeholder="H-38, R-13, Nikunja-2" />
+                </div>
+                <div>
+                  <label class="form-label">Floor / Unit Badge</label>
+                  <input class="form-input" id="cfgAptFloor" placeholder="7TH FLOOR" />
                 </div>
               </div>
-              <button class="btn btn-danger btn-sm" id="resetMonthBtn">Unlock Month</button>
             </div>
-            <div class="danger-row">
-              <div>
-                <div class="danger-row__title">Reset All Bill Data</div>
-                <div class="danger-row__desc">Clears all monthly electricity entries. Configuration is kept.</div>
+          </div>
+          <div class="config-block">
+            <div class="config-block__head">Monthly Fixed Costs</div>
+            <div class="config-block__body">
+              <p class="form-hint">Rent, Gas, Water &amp; Service form one bucket (split via Rent Split tab). Maid, WiFi
+                &amp; Electricity are split equally per head using ceiling rounding.</p>
+              <div class="form-grid">
+                <div><label class="form-label">Base House Rent (৳)</label><input class="form-input" id="cfgRent"
+                    type="number" placeholder="20000" /></div>
+                <div><label class="form-label">Gas Bill (৳)</label><input class="form-input" id="cfgGas" type="number"
+                    placeholder="1080" /></div>
+                <div><label class="form-label">Water Bill (৳)</label><input class="form-input" id="cfgWater"
+                    type="number" placeholder="1000" /></div>
+                <div><label class="form-label">Service Charge (৳)</label><input class="form-input" id="cfgService"
+                    type="number" placeholder="2000" /></div>
+                <div><label class="form-label">House Maid (৳)</label><input class="form-input" id="cfgMaid"
+                    type="number" placeholder="2500" /></div>
+                <div><label class="form-label">WiFi Bill (৳)</label><input class="form-input" id="cfgWifi" type="number"
+                    placeholder="800" /></div>
               </div>
-              <button class="btn btn-danger btn-sm" id="resetBillsBtn">Reset Bills</button>
-            </div>
-            <div class="danger-row">
-              <div>
-                <div class="danger-row__title danger-row__title--alert">Reset Everything</div>
-                <div class="danger-row__desc">Wipes all data including members, config, and bills. Cannot be undone.</div>
+              <div class="actions-row">
+                <button class="btn btn-primary" id="saveCostsBtn">Save Fixed Costs</button>
               </div>
-              <button class="btn btn-danger btn-sm" id="resetAllBtn">Reset All</button>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-  </div>
-</div>
 
-<nav class="bottom-nav">
-  <div class="bottom-nav__inner">
-    <button class="bottom-nav__btn active" data-page="dashboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Home
-    </button>
-    <button class="bottom-nav__btn" data-page="bills">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      Bills
-    </button>
-    <button class="bottom-nav__btn" data-page="expenses">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-      Expenses
-    </button>
-    <button class="bottom-nav__btn" data-page="settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-      Settings
-    </button>
-  </div>
-</nav>
-
-<div class="toast-stack" id="toastStack"></div>
-
-<div class="modal-backdrop" id="addModal">
-  <div class="modal">
-    <div class="modal__title">Add New Member</div>
-    <div class="modal__sub">They'll appear in all bill calculations once saved.</div>
-    <div style="margin-bottom:16px">
-      <label class="form-label">Full Name</label>
-      <input class="form-input" id="newMemberName" placeholder="e.g. Shimanto"/>
-    </div>
-    <div style="margin-bottom:8px">
-      <label class="form-label">Profile Photo (optional)</label>
-      <div class="photo-row">
-        <div class="photo-upload photo-upload--sm">
-          <img id="newMemberPreview" src="" alt="" style="display:none"/>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          <input type="file" accept="image/*" id="newMemberFile"/>
+        <div id="tab-rent" style="display:none">
+          <div class="config-block">
+            <div class="config-block__head">Rent Contribution Split</div>
+            <div class="config-block__body">
+              <div class="info-box">
+                <strong>How it works:</strong> A fixed amount covers <em>Rent + Gas + Water + Service</em> combined
+                (e.g. Parvez pays ৳6,500 total for that bucket — nothing extra added on top).
+                The remainder is divided equally among members without a fixed amount.
+                Electricity, Maid &amp; WiFi are split equally among <em>all</em> members (ceiling rounded).
+              </div>
+              <div class="rent-grid" id="rentSplitGrid"></div>
+              <div class="actions-row">
+                <button class="btn btn-primary" id="saveRentBtn">Save Rent Split</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <span class="photo-row__hint">JPG, PNG or WebP</span>
+
+        <div id="tab-backup" style="display:none">
+          <div class="config-block backup-block">
+            <div class="config-block__head">Data Backup</div>
+            <div class="config-block__body">
+              <div class="backup-row">
+                <div>
+                  <div class="backup-row__title">Export Backup</div>
+                  <div class="backup-row__desc">Download a full snapshot — members, bills, config, passwords, and
+                    sessions.</div>
+                </div>
+                <button class="btn btn-primary btn-sm" id="exportBackupBtn" type="button">Export</button>
+              </div>
+              <div class="backup-row">
+                <div>
+                  <div class="backup-row__title">Restore from File</div>
+                  <div class="backup-row__desc">Replace all current data with a backup JSON file. This cannot be undone.
+                  </div>
+                </div>
+                <div class="backup-restore-actions">
+                  <input type="file" accept=".json,application/json" id="backupFileInput" class="backup-file-input"
+                    hidden />
+                  <button class="btn btn-danger btn-sm" id="restoreBackupBtn" type="button">Restore</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-danger" style="display:none">
+          <div class="config-block danger-block">
+            <div class="config-block__head">⚠ Danger Zone</div>
+            <div class="config-block__body">
+              <div class="danger-row danger-row--stack">
+                <div>
+                  <div class="danger-row__title">Unlock Single Month</div>
+                  <div class="danger-row__desc">Remove a locked electricity bill for one month so you can enter it
+                    again.</div>
+                  <div class="reset-month-row">
+                    <select class="form-input" id="resetMonthSelect" aria-label="Month to unlock"></select>
+                    <select class="form-input" id="resetYearSelect" aria-label="Year to unlock"></select>
+                  </div>
+                </div>
+                <button class="btn btn-danger btn-sm" id="resetMonthBtn">Unlock Month</button>
+              </div>
+              <div class="danger-row">
+                <div>
+                  <div class="danger-row__title">Reset All Bill Data</div>
+                  <div class="danger-row__desc">Clears all monthly electricity entries. Configuration is kept.</div>
+                </div>
+                <button class="btn btn-danger btn-sm" id="resetBillsBtn">Reset Bills</button>
+              </div>
+              <div class="danger-row">
+                <div>
+                  <div class="danger-row__title danger-row__title--alert">Reset Everything</div>
+                  <div class="danger-row__desc">Wipes all data including members, config, and bills. Cannot be undone.
+                  </div>
+                </div>
+                <button class="btn btn-danger btn-sm" id="resetAllBtn">Reset All</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav__inner">
+      <button class="bottom-nav__btn active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        Home
+      </button>
+      <button class="bottom-nav__btn" data-page="bills">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        Bills
+      </button>
+      <button class="bottom-nav__btn" data-page="expenses">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+        Expenses
+      </button>
+      <button class="bottom-nav__btn" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+        </svg>
+        Settings
+      </button>
+    </div>
+  </nav>
+
+  <div class="toast-stack" id="toastStack"></div>
+
+  <div class="modal-backdrop" id="addModal">
+    <div class="modal">
+      <div class="modal__title">Add New Member</div>
+      <div class="modal__sub">They'll appear in all bill calculations once saved.</div>
+      <div style="margin-bottom:16px">
+        <label class="form-label">Full Name</label>
+        <input class="form-input" id="newMemberName" placeholder="e.g. Shimanto" />
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="form-label">Profile Photo (optional)</label>
+        <div class="photo-row">
+          <div class="photo-upload photo-upload--sm">
+            <img id="newMemberPreview" src="" alt="" style="display:none" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.5">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            <input type="file" accept="image/*" id="newMemberFile" />
+          </div>
+          <span class="photo-row__hint">JPG, PNG or WebP</span>
+        </div>
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn-ghost btn-sm" id="cancelAdd">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="confirmAdd">Add Member</button>
       </div>
     </div>
-    <div class="modal__actions">
-      <button class="btn btn-ghost btn-sm" id="cancelAdd">Cancel</button>
-      <button class="btn btn-primary btn-sm" id="confirmAdd">Add Member</button>
+  </div>
+
+  <div class="modal-backdrop" id="loginModal">
+    <div class="modal modal--login">
+      <div class="modal__title">Sign in</div>
+      <div class="modal__sub">Tap your profile, then enter your password.</div>
+      <div class="login-bubble-stage" aria-label="Select member">
+        <div class="login-bubble-field" id="loginMemberGrid"></div>
+      </div>
+      <div class="login-password-wrap">
+        <label class="form-label" for="loginPassword">Password</label>
+        <input class="form-input" type="password" id="loginPassword" placeholder="Enter your password"
+          autocomplete="current-password" />
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn-ghost btn-sm" id="loginCancel" type="button">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="loginSubmit" type="button">Sign in</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="modal-backdrop" id="loginModal">
-  <div class="modal modal--login">
-    <div class="modal__title">Sign in</div>
-    <div class="modal__sub">Tap your profile, then enter your password.</div>
-    <div class="login-bubble-stage" aria-label="Select member">
-      <div class="login-bubble-field" id="loginMemberGrid"></div>
-    </div>
-    <div class="login-password-wrap">
-      <label class="form-label" for="loginPassword">Password</label>
-      <input class="form-input" type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password"/>
-    </div>
-    <div class="modal__actions">
-      <button class="btn btn-ghost btn-sm" id="loginCancel" type="button">Cancel</button>
-      <button class="btn btn-primary btn-sm" id="loginSubmit" type="button">Sign in</button>
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal modal--narrow">
+      <div class="modal__title" id="confirmTitle">Are you sure?</div>
+      <div class="modal__sub" id="confirmDesc">This action cannot be undone.</div>
+      <div class="modal__actions">
+        <button class="btn btn-ghost btn-sm" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirmOk">Confirm</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="modal-backdrop" id="confirmModal">
-  <div class="modal modal--narrow">
-    <div class="modal__title" id="confirmTitle">Are you sure?</div>
-    <div class="modal__sub" id="confirmDesc">This action cannot be undone.</div>
-    <div class="modal__actions">
-      <button class="btn btn-ghost btn-sm" id="confirmCancel">Cancel</button>
-      <button class="btn btn-danger btn-sm" id="confirmOk">Confirm</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="/assets/js/sharespace.js"></script>
+  <script src="chart.umd.min.js"></script>
+  <script src="/assets/js/localhost.js"></script>
 </body>
+
 </html>

@@ -261,7 +261,6 @@ body.sidebar-open { overflow: hidden; }
   box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.15), 0 6px 16px rgba(0, 0, 0, 0.3);
 }
 :is([role="option"]):hover{
-  background-color: transparent !important;
   border-radius: 50% !important;
 }
 .login-bubble__photo {
