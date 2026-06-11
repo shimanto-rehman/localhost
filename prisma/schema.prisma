@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model Apartment {
+  id               String   @id @default(uuid()) @db.Uuid
+  registrationId   String   @unique @map("registration_id") @db.VarChar(20)
+  name             String   @unique @db.VarChar(80)
+  passwordHash     String   @map("password_hash")
+  addressRoad      String   @map("address_road") @db.VarChar(100)
+  addressPostal    String   @map("address_postal") @db.VarChar(20)
+  addressCity      String   @map("address_city") @db.VarChar(60)
+  addressCountry   String   @default("Bangladesh") @map("address_country") @db.VarChar(60)
+  aptFloor         String?  @map("apt_floor") @db.VarChar(30)
+  aptType          String?  @map("apt_type") @db.VarChar(30)
+  moveInDate       DateTime? @map("move_in_date") @db.Date
+  memberCountHint  Int?     @map("member_count_hint")
+  registrantName   String   @map("registrant_name") @db.VarChar(80)
+  registrantNid    String   @map("registrant_nid")
+  registrantPhone  String   @map("registrant_phone") @db.VarChar(20)
+  registrantEmail  String   @unique @map("registrant_email") @db.VarChar(255)
+  adminMemberId    String?  @map("admin_member_id") @db.Uuid
+  billManagerId    String?  @map("bill_manager_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  members          Member[]
+  bankAccounts     BankAccount[]
+  fixedCosts       FixedCost[]
+  optionalCosts    OptionalCost[]
+  rentSplits       RentSplit[]
+  monthlyBills     MonthlyBill[]
+  mealConfig       MealConfig?
+  mealRecords      MealRecord[]
+  mealShopping     MealShopping[]
+  mealMonths       MealMonth[]
+  expenses         Expense[]
+  auditEvents      AuditEvent[]
+
+  @@map("apartments")
+}
+
+model Member {
+  id           String   @id @default(uuid()) @db.Uuid
+  apartmentId  String   @map("apartment_id") @db.Uuid
+  name         String   @db.VarChar(80)
+  photoUrl     String?  @map("photo_url")
+  email        String?  @db.VarChar(255)
+  phone        String?  @db.VarChar(20)
+  nid          String?
+  hometown     String?  @db.VarChar(80)
+  country      String?  @default("Bangladesh") @db.VarChar(60)
+  moveInDate   DateTime? @map("move_in_date") @db.Date
+  isActive     Boolean  @default(true) @map("is_active")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  apartment              Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  bankAccount            BankAccount?
+  optionalCostMembers    OptionalCostMember[]
+  rentSplit              RentSplit?
+  billAdjustments        BillAdjustment[]
+  lockedBills            MonthlyBill[] @relation("LockedBy")
+  mealRecords            MealRecord[]
+  mealShopping           MealShopping[]
+  mealShoppingAdded      MealShopping[] @relation("AddedBy")
+  mealMonthsFinalized    MealMonth[] @relation("FinalizedBy")
+  expenses               Expense[]
+  passwordResetTokens    PasswordResetToken[]
+  memberSessions         MemberSession[]
+  auditEvents            AuditEvent[]
+
+  @@unique([apartmentId, email])
+  @@index([apartmentId])
+  @@map("members")
+}
+
+model BankAccount {
+  id                  String  @id @default(uuid()) @db.Uuid
+  apartmentId         String  @map("apartment_id") @db.Uuid
+  memberId            String  @unique @map("member_id") @db.Uuid
+  accountNumber       String  @map("account_number")
+  bankName            String  @map("bank_name") @db.VarChar(80)
+  branchName          String? @map("branch_name") @db.VarChar(80)
+  routingNumber       String? @map("routing_number") @db.VarChar(20)
+  accountType         String? @map("account_type") @db.VarChar(20)
+  mobileBankingNumber String? @map("mobile_banking_number")
+  mobileBankingType   String? @map("mobile_banking_type") @db.VarChar(20)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("bank_accounts")
+}
+
+model FixedCost {
+  id            String   @id @default(uuid()) @db.Uuid
+  apartmentId   String   @map("apartment_id") @db.Uuid
+  name          String   @db.VarChar(80)
+  amount        Int      @default(0)
+  inFixedBucket Boolean  @default(true) @map("in_fixed_bucket")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  @@index([apartmentId])
+  @@map("fixed_costs")
+}
+
+model OptionalCost {
+  id          String   @id @default(uuid()) @db.Uuid
+  apartmentId String   @map("apartment_id") @db.Uuid
+  name        String   @db.VarChar(80)
+  amount      Int      @default(0)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  members   OptionalCostMember[]
+
+  @@index([apartmentId])
+  @@map("optional_costs")
+}
+
+model OptionalCostMember {
+  optionalCostId String @map("optional_cost_id") @db.Uuid
+  memberId       String @map("member_id") @db.Uuid
+  optedIn        Boolean @default(true) @map("opted_in")
+
+  optionalCost OptionalCost @relation(fields: [optionalCostId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([optionalCostId, memberId])
+  @@map("optional_cost_members")
+}
+
+model RentSplit {
+  id          String  @id @default(uuid()) @db.Uuid
+  apartmentId String  @map("apartment_id") @db.Uuid
+  memberId    String  @unique @map("member_id") @db.Uuid
+  fixedAmount Int?    @map("fixed_amount")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([apartmentId, memberId])
+  @@map("rent_splits")
+}
+
+model MonthlyBill {
+  id          String    @id @default(uuid()) @db.Uuid
+  apartmentId String    @map("apartment_id") @db.Uuid
+  monthKey    String    @map("month_key") @db.VarChar(7)
+  electricity Int?
+  isLocked    Boolean   @default(false) @map("is_locked")
+  lockedAt    DateTime? @map("locked_at")
+  lockedById  String?   @map("locked_by") @db.Uuid
+  snapshot    Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  lockedBy    Member?   @relation("LockedBy", fields: [lockedById], references: [id])
+  adjustments BillAdjustment[]
+
+  @@unique([apartmentId, monthKey])
+  @@index([apartmentId, monthKey])
+  @@map("monthly_bills")
+}
+
+model BillAdjustment {
+  id        String   @id @default(uuid()) @db.Uuid
+  billId    String   @map("bill_id") @db.Uuid
+  memberId  String   @map("member_id") @db.Uuid
+  type      String   @db.VarChar(10)
+  label     String   @db.VarChar(120)
+  amount    Int
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bill   MonthlyBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  member Member      @relation(fields: [memberId], references: [id])
+
+  @@map("bill_adjustments")
+}
+
+model MealConfig {
+  id           String   @id @default(uuid()) @db.Uuid
+  apartmentId  String   @unique @map("apartment_id") @db.Uuid
+  mealsPerDay  Int      @default(2) @map("meals_per_day")
+  mealNames    String[] @default(["Lunch", "Dinner"]) @map("meal_names")
+  weekStartDay Int      @default(6) @map("week_start_day")
+  rateOverride Int?     @map("rate_override")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  @@map("meal_config")
+}
+
+model MealRecord {
+  id          String    @id @default(uuid()) @db.Uuid
+  apartmentId String    @map("apartment_id") @db.Uuid
+  memberId    String    @map("member_id") @db.Uuid
+  mealDate    DateTime  @map("meal_date") @db.Date
+  mealSlot    Int       @map("meal_slot")
+  isConfirmed Boolean   @default(false) @map("is_confirmed")
+  confirmedBy String?   @map("confirmed_by") @db.Uuid
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([apartmentId, memberId, mealDate, mealSlot])
+  @@index([apartmentId, memberId])
+  @@map("meal_records")
+}
+
+model MealShopping {
+  id           String   @id @default(uuid()) @db.Uuid
+  apartmentId  String   @map("apartment_id") @db.Uuid
+  memberId     String   @map("member_id") @db.Uuid
+  monthKey     String   @map("month_key") @db.VarChar(7)
+  itemName     String   @map("item_name") @db.VarChar(80)
+  amount       Int
+  purchaseDate DateTime @map("purchase_date") @db.Date
+  addedById    String?  @map("added_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id])
+  addedBy   Member?   @relation("AddedBy", fields: [addedById], references: [id])
+
+  @@index([apartmentId, monthKey])
+  @@map("meal_shopping")
+}
+
+model MealMonth {
+  id           String    @id @default(uuid()) @db.Uuid
+  apartmentId  String    @map("apartment_id") @db.Uuid
+  monthKey     String    @map("month_key") @db.VarChar(7)
+  isFinalized  Boolean   @default(false) @map("is_finalized")
+  finalizedAt  DateTime? @map("finalized_at")
+  finalizedById String?  @map("finalized_by") @db.Uuid
+  snapshot     Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  finalizedBy Member?   @relation("FinalizedBy", fields: [finalizedById], references: [id])
+
+  @@unique([apartmentId, monthKey])
+  @@map("meal_months")
+}
+
+model Expense {
+  id          String    @id @default(uuid()) @db.Uuid
+  apartmentId String    @map("apartment_id") @db.Uuid
+  memberId    String    @map("member_id") @db.Uuid
+  monthKey    String    @map("month_key") @db.VarChar(7)
+  itemName    String    @map("item_name") @db.VarChar(80)
+  price       Int
+  category    String    @default("Other") @db.VarChar(40)
+  expenseDate DateTime? @map("expense_date") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id])
+
+  @@index([apartmentId, monthKey])
+  @@index([memberId])
+  @@map("expenses")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  memberId  String    @map("member_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model AuditEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  apartmentId   String   @map("apartment_id") @db.Uuid
+  actorMemberId String?  @map("actor_member_id") @db.Uuid
+  action        String   @db.VarChar(80)
+  targetType    String?  @map("target_type") @db.VarChar(40)
+  targetId      String?  @map("target_id") @db.Uuid
+  meta          Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id])
+  actor     Member?   @relation(fields: [actorMemberId], references: [id])
+
+  @@map("audit_events")
+}
+
+model MemberSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  memberId  String    @map("member_id") @db.Uuid
+  tokenJti  String    @unique @map("token_jti")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("member_sessions")
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @db.VarChar(255)
+  attempts  Int      @default(0)
+  lockedUntil DateTime? @map("locked_until")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([key])
+  @@map("login_attempts")
+}

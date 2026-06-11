@@ -1,9 +1,8 @@
-# localhost — Apartment Bill Splitter
+# LocalHost — Apartment Bill Splitter
 
-A simple web app that helps flatmates split monthly apartment bills fairly.  
-Enter your rent, gas, water, electricity, maid, Wi‑Fi, and service charges — the app calculates how much each person pays and saves everything to a server so you don't lose data when you refresh the page.
+A full-stack web app that helps flatmates split monthly apartment bills fairly. Track rent, utilities, meals, and personal expenses — with role-based access, locked monthly bills, and a PostgreSQL-backed database so everyone sees the same data.
 
-Built with plain **HTML**, **CSS**, and **JavaScript** (no React, no build step). Deploy it free on **Vercel**.
+**v2.0** is built with **Next.js 14** (App Router), **PostgreSQL**, and **Prisma**. Deploy free on [Vercel](https://vercel.com) with a cloud database from [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Railway](https://railway.app).
 
 ---
 
@@ -13,45 +12,51 @@ Built with plain **HTML**, **CSS**, and **JavaScript** (no React, no build step)
 2. [Who is it for?](#who-is-it-for)
 3. [Features](#features)
 4. [How the bill math works](#how-the-bill-math-works)
-5. [Project folder structure](#project-folder-structure)
-6. [What you need before starting](#what-you-need-before-starting)
-7. [Run the app on your computer (local setup)](#run-the-app-on-your-computer-local-setup)
+5. [Project structure](#project-structure)
+6. [Prerequisites](#prerequisites)
+7. [Local setup](#local-setup)
 8. [How to use the app](#how-to-use-the-app)
-9. [Deploy to the internet (Vercel)](#deploy-to-the-internet-vercel)
-10. [How data is saved](#how-data-is-saved)
-11. [API reference (for developers)](#api-reference-for-developers)
-12. [Troubleshooting](#troubleshooting)
-13. [Tech stack](#tech-stack)
+9. [Deploy to Vercel](#deploy-to-vercel)
+10. [Environment variables](#environment-variables)
+11. [API overview](#api-overview)
+12. [SEO & Google indexing](#seo--google-indexing)
+13. [Troubleshooting](#troubleshooting)
+14. [Tech stack](#tech-stack)
 
 ---
 
 ## What does this app do?
 
-Imagine three friends share an apartment. Every month they get bills for:
+Imagine a group of friends sharing an apartment in Dhaka. Every month they deal with:
 
-- Rent, gas, water, and building service charge  
-- Electricity (changes every month)  
-- House maid and Wi‑Fi (fixed amounts)
+- **Fixed costs** — rent, gas, water, building service charge  
+- **Variable costs** — electricity (entered each month)  
+- **Optional costs** — house maid, Wi‑Fi (not everyone opts in)  
+- **Meals** — shared shopping pool split by meal count  
+- **Personal expenses** — individual spending with carry-forward fairness  
 
-**localhost** answers one question: *"How much should each person pay this month?"*
+**LocalHost** answers: *"How much should each person pay this month?"*
 
-It also gives you:
+It also provides:
 
-- A **dashboard** with charts and yearly summaries  
-- A **monthly bills** page to enter electricity and see the split  
-- A **configuration** page to set members, fixed costs, and custom rent amounts  
+- **Apartment registration** — each mess/flat signs up independently  
+- **Member login** — Admin, Bill Manager, and Member roles  
+- **Dashboard** — yearly charts, stats, and current-month breakdowns  
+- **Meal management** — weekly checklist, shopping pool, per-meal cost  
+- **Backup & restore** — export/import full apartment data as JSON  
 
-All numbers are stored on a server — not just in your browser — so everyone sees the same data.
+All data lives in **PostgreSQL** — not in the browser — so it survives refreshes and works across devices.
 
 ---
 
 ## Who is it for?
 
 - Flatmates who want a fair, transparent bill split  
-- Anyone managing a shared apartment in Bangladesh (uses ৳ Taka)  
-- Beginners who want a real project they can run, edit, and deploy  
+- Mess and bachelor-flat managers in Bangladesh (uses ৳ Taka)  
+- Groups of 2–15 people sharing one apartment  
+- Developers who want a deployable Next.js + Prisma reference project  
 
-You do **not** need to know React or Node.js frameworks. Basic computer skills (installing Node.js, opening a terminal) are enough to run it locally.
+Basic skills needed: install Node.js, run terminal commands, and (for production) set up a free PostgreSQL database.
 
 ---
 
@@ -59,26 +64,30 @@ You do **not** need to know React or Node.js frameworks. Basic computer skills (
 
 | Feature | Description |
 |--------|-------------|
-| **Dashboard** | Stats, 6 charts, per-member breakdown for the current month |
-| **Monthly Bills** | Navigate month by month, enter electricity, view locked bills |
-| **Configuration** | Add members with photos, set fixed costs, custom rent splits |
-| **Dark / Light theme** | Toggle in the top bar; preference saved in your browser |
-| **Mobile friendly** | Sidebar menu + bottom navigation on phones |
-| **Server persistence** | Data survives refresh; shared when deployed |
-| **Locked bills** | Once a month's electricity is saved, it cannot be edited (only reset) |
-| **Rounding gap chart** | Shows extra money collected from rounding splits up |
+| **Apartment auth** | Register once per apartment; sign in with name or registration ID |
+| **Member roles** | Admin, Bill Manager, Member — with permission-based editing |
+| **Dashboard** | Stat cards, 6+ charts, member bill cards for the current month |
+| **Monthly bills** | Enter electricity, lock month, view per-member breakdown |
+| **Meal management** | Weekly checklist, shopping pool, finalize meals for billing |
+| **Expense tracker** | Personal spending with monthly carry-forward |
+| **Fixed + optional costs** | Configurable line items; optional costs with per-member opt-in |
+| **Rent split** | Custom fixed contributions; remainder split among free members |
+| **Bank reference** | Bill Manager account shown via eye icon for manual transfers |
+| **Password reset** | Email-based reset links (SMTP or Resend) |
+| **Backup / restore** | Full JSON export; transactional import |
+| **Dark / light theme** | Toggle in top bar; saved in `localStorage` |
+| **Mobile responsive** | Sidebar + bottom navigation on phones |
+| **SEO** | Sitemap, robots.txt, Open Graph, JSON-LD for Google |
 
 ---
 
 ## How the bill math works
 
-This is the most important section. Read it carefully if you want to trust the numbers.
+### Step 1 — Fixed bucket
 
-### Step 1 — Fixed bucket (Rent + Gas + Water + Service)
+Rent, gas, water, and service charge form one **fixed bucket** (plus any custom in-bucket costs).
 
-These four costs are grouped into one **fixed bucket**.
-
-Example default values:
+Default example:
 
 | Item | Amount |
 |------|--------|
@@ -88,193 +97,169 @@ Example default values:
 | Service | ৳2,000 |
 | **Fixed bucket total** | **৳24,080** |
 
-#### Custom fixed amounts (Rent Split)
-
-In **Configuration → Rent Split**, you can give a member a **fixed contribution** toward this bucket.
-
-Example: Parvez pays a fixed **৳6,500** (covers his share of rent + gas + water + service combined).
-
-What's left in the bucket is split **equally** among members who do **not** have a fixed amount:
+**Rent split:** Members can have a **fixed contribution** (e.g. Parvez → ৳6,500). The remainder is divided among **free members** using `Math.round`:
 
 ```
-Remaining = Fixed bucket − Sum of all fixed contributions
-Each free member pays = Remaining ÷ number of free members
+Remaining = Fixed bucket − Sum of fixed contributions
+Free share = round(Remaining ÷ number of free members)
 ```
 
-With Parvez at ৳6,500 and two others (Shimanto, Tauqir) sharing the rest:
+### Step 2 — Optional costs
+
+Costs like house maid (৳2,500) and Wi‑Fi (৳800) are split **only among opted-in members**, using ceiling rounding:
 
 ```
-Remaining = 24,080 − 6,500 = 17,580
-Each of Shimanto & Tauqir = 17,580 ÷ 2 = 8,790
+Per head = ceil(optional cost ÷ opted-in count)
 ```
 
-### Step 2 — Variable costs (split equally with ceiling rounding)
+### Step 3 — Variable costs
 
-These three costs are split **equally among all members**, rounded **up** to the nearest whole Taka:
-
-| Cost | Split rule |
-|------|------------|
-| Electricity | `ceil(electricity ÷ number of members)` per person |
-| House Maid | `ceil(maid ÷ number of members)` per person |
-| Wi‑Fi | `ceil(wifi ÷ number of members)` per person |
-
-**Ceiling** means always round up. Example with 3 members and electricity ৳910:
+Electricity is split equally with **ceiling** rounding:
 
 ```
-910 ÷ 3 = 303.33… → each person pays ৳304
-Collected from electricity = 304 × 3 = ৳912
-Actual bill = ৳910
-Gap = 912 − 910 = ৳2 extra (rounding gap)
+Per head = ceil(electricity ÷ active members)
 ```
 
-### Step 3 — Total per person
-
-Each member's monthly total:
+### Step 4 — Meal costs
 
 ```
-Total = Fixed bucket share + Electricity share + Maid share + Wi‑Fi share
+Per meal cost = total shopping pool ÷ total meal count
+Member meal cost = ceil(per meal cost × member's meal count)
 ```
 
-### Full example — June 2026 (3 members, Parvez fixed ৳6,500, electricity ৳910)
+Meal costs are included in the monthly bill after the Bill Manager **finalizes** meals for that month.
 
-| Member | Fixed bucket | Electricity | Maid | Wi‑Fi | **Total** |
-|--------|-------------|-------------|------|-------|-----------|
-| Shimanto | 8,790 | 304 | 834 | 267 | **10,195** |
-| Tauqir | 8,790 | 304 | 834 | 267 | **10,195** |
-| Parvez | 6,500 | 304 | 834 | 267 | **7,905** |
-| **Collected** | | | | | **28,295** |
+### Step 5 — Total per member
 
 ```
-Actual bill = 24,080 + 910 + 2,500 + 800 = 28,290
-Rounding gap = 28,295 − 28,290 = ৳5
+Total = fixed share + optional share + electricity + meals ± adjustments
 ```
 
-The dashboard **Rounding Gap** chart tracks this small surplus each month.
+Adjustments (lend/borrow) apply only to **locked** months. Member totals are floored at ৳0.
+
+### Full example — June 2026
+
+| Member | Fixed | Maid | Wi‑Fi | Elec | Meals | **Total** |
+|--------|-------|------|-------|------|-------|-----------|
+| Shimanto | 8,790 | 834 | 400 | 304 | 4,001 | **14,329** |
+| Tauqir | 8,790 | 834 | 400 | 304 | 3,667 | **13,995** |
+| Parvez | 6,500 | 834 | 0 | 304 | 3,334 | **10,972** |
+
+The **rounding gap** (collected total minus actual bill) comes from ceiling splits and is tracked on the dashboard.
+
+See `BRD.md` Section 12 for the full worked example.
 
 ---
 
-## Project folder structure
+## Project structure
 
 ```
 Localhost/
-├── index.html              ← Main app page (open this in the browser)
-├── favicon.ico             ← Tab icon in the browser
-├── package.json            ← Node.js project info and scripts
-├── dev-server.mjs          ← Local development server
-├── vercel.json             ← Vercel deployment settings
-│
-├── api/
-│   └── store.js            ← Server API (saves/loads data)
-│
-├── assets/
-│   ├── css/
-│   │   ├── fonts.css       ← Self-hosted fonts
-│   │   └── sharespace.css  ← All app styles
-│   ├── js/
-│   │   └── sharespace.js   ← All app logic (calculations, charts, UI)
-│   ├── fonts/              ← Font files (.woff2)
-│   └── images/
-│       └── Logo.png        ← App logo
-│
-└── data/
-    └── store.json          ← Local data file (created when you run locally)
-                              Note: this file is git-ignored
+├── app/                        ← Next.js App Router
+│   ├── (app)/                  ← Authenticated pages
+│   │   ├── dashboard/
+│   │   ├── bills/
+│   │   ├── meals/
+│   │   ├── expenses/
+│   │   └── settings/
+│   ├── api/                    ← Route handlers (REST API)
+│   ├── reset-password/[token]/
+│   ├── layout.tsx              ← Root layout + SEO metadata
+│   ├── page.tsx                ← Preloader + apartment auth
+│   ├── sitemap.ts
+│   └── robots.ts
+├── components/                 ← React UI (sidebar, charts, modals)
+├── lib/                        ← Auth, calculations, validation, Prisma
+├── prisma/
+│   ├── schema.prisma           ← Database schema
+│   └── migrations/
+├── public/assets/              ← Fonts, images, CSS (from original design)
+├── BRD.md                      ← Full business requirements (v2.0)
+├── package.json
+├── vercel.json
+└── .env.local.example
 ```
+
+Legacy v1 files (`index.html`, `api/store.js`, `dev-server.mjs`) are kept for reference but are **not used** by v2.
 
 ---
 
-## What you need before starting
+## Prerequisites
 
-### 1. Node.js (required for local development)
+1. **Node.js 20 LTS** — [nodejs.org](https://nodejs.org)  
+2. **PostgreSQL 15+** — local install, Docker, or a free cloud tier  
+3. **Git** — for pushing to GitHub and deploying on Vercel  
 
-Node.js lets you run the small server on your computer.
-
-1. Go to [https://nodejs.org](https://nodejs.org)  
-2. Download the **LTS** version (recommended)  
-3. Install it with default options  
-4. Open **Terminal** (Mac/Linux) or **PowerShell** (Windows)  
-5. Check it works:
+Verify Node.js:
 
 ```bash
-node --version
+node --version   # v20.x or v22.x
 npm --version
 ```
 
-You should see version numbers like `v22.x.x` and `10.x.x`.
-
-### 2. A code editor (optional but helpful)
-
-[Visual Studio Code](https://code.visualstudio.com/) is free and works well.
-
-### 3. Git (optional, needed for Vercel deploy)
-
-Download from [https://git-scm.com](https://git-scm.com) if you want to push to GitHub and deploy.
-
 ---
 
-## Run the app on your computer (local setup)
+## Local setup
 
-Follow these steps exactly if you are new to this.
-
-### Step 1 — Open the project folder in terminal
-
-**Windows (PowerShell):**
-
-```powershell
-cd "C:\Users\YourName\Downloads\Localhost"
-```
-
-Replace `YourName` with your actual Windows username and adjust the path if your folder is elsewhere.
-
-**Mac / Linux:**
+### 1. Clone and install
 
 ```bash
-cd ~/Downloads/Localhost
-```
-
-### Step 2 — Install dependencies
-
-This downloads one small package (`@upstash/redis`) used when deployed. Run once:
-
-```bash
+cd Localhost
 npm install
 ```
 
-Wait until it finishes. You should see a `node_modules` folder appear.
+### 2. Configure environment
 
-### Step 3 — Start the local server
+Copy the example file and fill in your values:
+
+```bash
+cp .env.local.example .env.local
+```
+
+At minimum you need `DATABASE_URL`, `DIRECT_DATABASE_URL`, `JWT_SECRET`, and `ENCRYPTION_KEY`.
+
+Generate an encryption key (32 bytes as hex):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 3. Run database migrations
+
+```bash
+npx prisma migrate dev
+```
+
+Or push schema without migration history:
+
+```bash
+npm run db:push
+```
+
+### 4. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-You should see:
+Open **http://localhost:3000**
 
+### 5. First use
+
+1. Wait for the preloader animation  
+2. Click **Register** and create your apartment  
+3. You are logged in as **Admin** and redirected to **Configuration**  
+4. Add members (default password: `1234`)  
+5. Set fixed costs, optional costs, and rent split  
+6. Sign in as a member from the sidebar to edit bills and expenses  
+
+### Optional: Prisma Studio
+
+Browse the database in a GUI:
+
+```bash
+npm run db:studio
 ```
-ShareSpace running at http://localhost:3456
-```
-
-### Step 4 — Open the app
-
-Open your browser and go to:
-
-**http://localhost:3456**
-
-You should see the localhost dashboard with a pulse loading animation, then the main app.
-
-### Step 5 — Stop the server
-
-In the terminal, press **Ctrl + C** to stop.
-
-### Where is my data saved locally?
-
-When running locally, all data is saved to:
-
-```
-data/store.json
-```
-
-This file is created automatically the first time you use the app. It is listed in `.gitignore` so your personal bill data is not accidentally pushed to GitHub.
 
 ---
 
@@ -282,248 +267,216 @@ This file is created automatically the first time you use the app. It is listed 
 
 ### Navigation
 
-| Screen | How to open |
-|--------|-------------|
-| **Dashboard** | Sidebar or bottom nav → Home |
-| **Monthly Bills** | Sidebar or bottom nav → Bills |
-| **Configuration** | Sidebar or bottom nav → Settings |
+| Page | Path | Description |
+|------|------|-------------|
+| Home / Auth | `/` | Apartment sign in or register |
+| Dashboard | `/dashboard` | Stats, charts, current month bills |
+| Monthly Bills | `/bills` | Enter electricity, view locked breakdown |
+| Meals | `/meals` | Weekly checklist, shopping, summary |
+| Expenses | `/expenses` | Personal spending + carry-forward |
+| Settings | `/settings` | Members, costs, backup, danger zone |
 
-On mobile, tap the **☰ menu** button (top left) to open the sidebar.
+On mobile, use the **bottom nav** or tap **☰** for the sidebar.
 
-### Dashboard
+### Roles
 
-- **Stat cards** — Fixed bucket total, member count, bills logged this year, rounding gap  
-- **Charts** — Monthly totals, per-person contributions, category breakdown, electricity trend, member comparison, rounding gap  
-- **Member Bills** — Each person's share for the current month (only if that month has a saved electricity bill)  
+| Role | Can do |
+|------|--------|
+| **Admin** | Everything — config, members, roles, backup, danger zone |
+| **Bill Manager** | Lock bills, meal checklist, shopping, adjustments |
+| **Member** | View all data; edit own expenses; view bank details |
 
-### Monthly Bills
+Click **Sign in to edit** in the sidebar to log in as a member.
 
-1. Use **← →** arrows to pick a month  
-2. Enter the **electricity bill amount** for that month  
-3. Click **Save & Calculate**  
-4. The bill becomes **locked** — you cannot change it without resetting  
+### Monthly bills workflow
 
-You'll see:
+1. Go to **Bills** → pick the month  
+2. Enter the **electricity** amount  
+3. Click **Save & Lock** (Admin or Bill Manager)  
+4. View per-member cards and summary pills  
+5. Add **adjustments** (lend/borrow) after locking if needed  
 
-- Summary pills (house rent total, electricity, actual bill, collected, gap)  
-- Per-member cards with a full breakdown  
-- A table with every expense row  
+### Meal workflow
 
-### Configuration
+1. Go to **Meals** → toggle meal slots each week  
+2. Members add **shopping** items to the pool  
+3. Per-meal cost updates automatically  
+4. Bill Manager clicks **Finalize Meals** for the month  
+5. Meal costs appear on the locked monthly bill  
 
-#### Members tab
+### Configuration tabs
 
-- Add flatmates with name and optional profile photo  
-- Click **Save Members** to store on the server  
-
-#### Fixed Costs tab
-
-Set your apartment address, floor badge, and monthly fixed amounts:
-
-- Rent, Gas, Water, Service, Maid, Wi‑Fi  
-
-Click **Save Fixed Costs**.
-
-#### Rent Split tab
-
-- Toggle **Fixed amount** for a member who pays a set sum toward the fixed bucket  
-- Enter their amount (e.g. Parvez → ৳6,500)  
-- Other members share the remainder equally  
-
-Click **Save Rent Split**.
-
-#### Danger Zone tab
-
-- **Unlock Single Month** — Pick month + year to remove one locked electricity bill  
-- **Reset all bills** — Clears all electricity entries; keeps members and settings  
-- **Reset everything** — Wipes all data back to defaults  
+- **Members** — add flatmates, assign roles, send password reset  
+- **Fixed Costs** — rent, gas, water, service, custom items  
+- **Optional** — maid, Wi‑Fi, etc. with opt-in matrix  
+- **Rent Split** — fixed contributions per member  
+- **Meal Settings** — meals per day, names, week start day  
+- **Backup** — export / import JSON  
+- **Danger Zone** — unlock month, reset bills/meals/all  
 
 ---
 
-## Deploy to the internet (Vercel)
+## Deploy to Vercel
 
-Deploying puts your app online so flatmates can open it from any device.
+### 1. Create a PostgreSQL database
 
-### Step 1 — Push to GitHub
+Use one of:
 
-1. Create a new repository on [GitHub](https://github.com)  
-2. In your project folder:
+- [Neon](https://neon.tech) (recommended — free tier, built-in pooler)  
+- [Supabase](https://supabase.com)  
+- [Railway](https://railway.app)  
+
+Copy both the **pooled** connection string (`DATABASE_URL`) and the **direct** URL (`DIRECT_DATABASE_URL`).
+
+### 2. Push to GitHub
 
 ```bash
-git init
 git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git commit -m "LocalHost v2.0 — Next.js rebuild"
 git push -u origin main
 ```
 
-### Step 2 — Import into Vercel
+### 3. Import into Vercel
 
-1. Go to [https://vercel.com](https://vercel.com) and sign up (free)  
-2. Click **Add New → Project**  
-3. Import your GitHub repository  
-4. Leave build settings as default (no build command needed)  
-5. Click **Deploy**  
+1. Go to [vercel.com](https://vercel.com) → **Add New → Project**  
+2. Import your GitHub repository  
+3. Framework preset: **Next.js** (auto-detected)  
+4. Build command: `prisma generate && next build` (set in `vercel.json`)  
+5. Add all [environment variables](#environment-variables)  
+6. Click **Deploy**  
 
-Your app will be live at a URL like `https://your-project.vercel.app`.
+### 4. Run production migration (once)
 
-### Step 3 — Add Redis for permanent storage (important)
+After the first deploy, run migrations against your production database:
 
-On Vercel, the filesystem is temporary. You need a database to keep data.
+```bash
+npx prisma migrate deploy
+```
 
-1. In your Vercel project, go to **Storage** or **Marketplace**  
-2. Add **Upstash Redis** (free tier available)  
-3. Connect it to your project — Vercel automatically sets these environment variables:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-4. Redeploy the project  
+Or add a one-time deploy hook / run locally with production `DATABASE_URL`.
 
-Without Redis, data may reset when the server restarts.
+### 5. Verify
 
-### Step 4 — Verify
-
-Open your Vercel URL. The green dot in the sidebar footer means the server is connected. A yellow dot means offline/fallback mode.
+Open your Vercel URL (e.g. `https://your-app.vercel.app`). Register an apartment and confirm data persists after refresh.
 
 ---
 
-## How data is saved
+## Environment variables
 
-The app talks to `/api/store` — a small serverless function.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL URL (use pooler in production) |
+| `DIRECT_DATABASE_URL` | Yes | Direct PostgreSQL URL (for migrations) |
+| `JWT_SECRET` | Yes | 64+ character random string for JWT signing |
+| `ENCRYPTION_KEY` | Yes | 64-char hex string (32 bytes) for NID/bank encryption |
+| `NEXT_PUBLIC_SITE_URL` | Yes | Public app URL, e.g. `https://your-app.vercel.app` |
+| `RESEND_API_KEY` | Email* | Resend API key (alternative to SMTP) |
+| `SMTP_HOST` | Email* | SMTP host for password reset |
+| `SMTP_PORT` | Email* | SMTP port (587 or 465) |
+| `SMTP_USER` | Email* | SMTP username |
+| `SMTP_PASS` | Email* | SMTP password |
+| `SMTP_FROM` | Email* | Sender address, e.g. `noreply@yourdomain.com` |
 
-| Environment | Where data lives |
-|-------------|------------------|
-| **Local** (`npm run dev`) | `data/store.json` on your computer |
-| **Vercel (with Redis)** | Upstash Redis cloud database |
-| **Vercel (no Redis)** | Not reliable — do not use in production |
-
-### Data shape (simplified)
-
-```json
-{
-  "config": {
-    "aptName": "Your address",
-    "aptFloor": "7TH FLOOR",
-    "fixedCosts": { "rent": 20000, "gas": 1080, ... },
-    "rentSplit": { "m3": 6500 }
-  },
-  "members": [
-    { "id": "m1", "name": "Shimanto", "photo": "" }
-  ],
-  "bills": {
-    "2026-06": { "electricity": 910, "locked": true, "savedAt": "..." }
-  }
-}
-```
-
-Month keys use format **`YYYY-MM`** (e.g. `2026-06` for June 2026).
+\*At least one email provider (Resend or SMTP) is needed for password reset emails. Without it, resets can still be done manually by Admin.
 
 ---
 
-## API reference (for developers)
+## API overview
 
-Base URL: `/api/store`
+All routes are under `/api/`. Apartment session cookie (`apt_session`) is required for most routes. Mutating routes also require member session (`member_session`).
 
-| Method | Purpose |
-|--------|---------|
-| `GET` | Load all data |
-| `POST` | Perform an action (see below) |
-| `PUT` | Replace entire store (advanced) |
-| `DELETE` | Delete all stored data |
+### Authentication
 
-### POST actions
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/auth/apartment/register` | Register apartment |
+| POST | `/api/auth/apartment/login` | Apartment sign in |
+| POST | `/api/auth/apartment/logout` | Sign out apartment |
+| GET | `/api/auth/apartment/info` | Current apartment data |
+| POST | `/api/auth/member/login` | Member sign in |
+| POST | `/api/auth/member/logout` | Member sign out |
+| GET | `/api/auth/member/verify` | Verify member session |
+| POST | `/api/auth/member/request-reset` | Send password reset email |
+| POST | `/api/auth/member/reset-password` | Set new password via token |
 
-**saveConfig** — Update settings or members
+### Data
 
-```json
-{
-  "action": "saveConfig",
-  "payload": {
-    "config": { "aptName": "...", "fixedCosts": { ... }, "rentSplit": { ... } },
-    "members": [ { "id": "m1", "name": "...", "photo": "" } ]
-  }
-}
-```
+| Area | Routes |
+|------|--------|
+| Members | `GET/POST /api/members`, `PATCH/DELETE /api/members/[id]` |
+| Config | `GET /api/config`, `PATCH /api/config/*` |
+| Bills | `GET /api/bills`, `POST /api/bills/[monthKey]/lock`, `GET .../calculation` |
+| Meals | `GET/PATCH /api/meals/[monthKey]/checklist`, `POST .../shopping`, `POST .../finalize` |
+| Expenses | `GET/POST /api/expenses/[monthKey]` |
+| Dashboard | `GET /api/dashboard/year-summary`, `GET .../current-month` |
+| Backup | `GET /api/backup/export`, `POST /api/backup/restore` |
+| Danger | `POST /api/danger/reset-bills`, `reset-meals`, `reset-all` |
 
-**saveBill** — Save and lock a month's electricity
+Full specification: see `BRD.md` Section 10.
 
-```json
-{
-  "action": "saveBill",
-  "payload": { "monthKey": "2026-06", "electricity": 910 }
-}
-```
+Month keys use format **`YYYY-MM`** (e.g. `2026-06`).
 
-**resetBillMonth** — Unlock one month's electricity bill
+---
 
-```json
-{ "action": "resetBillMonth", "payload": { "monthKey": "2026-06" } }
-```
+## SEO & Google indexing
 
-**resetBills** — Clear all monthly bills
+LocalHost ships with search-engine basics out of the box:
 
-```json
-{ "action": "resetBills" }
-```
+- **Metadata** — title, description, Open Graph, Twitter cards in root layout  
+- **Sitemap** — `/sitemap.xml` (auto-generated)  
+- **Robots** — `/robots.txt` allows public pages, blocks `/api/`  
+- **JSON-LD** — `WebApplication` structured data for rich results  
 
-**resetAll** — Reset everything to defaults
+### Submit to Google Search Console
 
-```json
-{ "action": "resetAll" }
-```
+1. Deploy to Vercel and set `NEXT_PUBLIC_SITE_URL` to your live URL  
+2. Go to [Google Search Console](https://search.google.com/search-console)  
+3. Add your property (URL prefix)  
+4. Verify ownership (HTML tag or DNS)  
+5. Submit sitemap: `https://your-app.vercel.app/sitemap.xml`  
+
+Authenticated app pages (`/dashboard`, `/bills`, etc.) require login and are not meant for public indexing. The landing page at `/` is the primary SEO entry point.
 
 ---
 
 ## Troubleshooting
 
-### "Could not connect to server" toast
+### Build fails on Vercel — Prisma client not found
 
-- **Local:** Make sure `npm run dev` is running and you open `http://localhost:3456`  
-- **Vercel:** Check that Redis is connected and the project redeployed  
+Ensure `postinstall` runs `prisma generate` (already in `package.json`). Redeploy after connecting env vars.
 
-### Charts not showing / "Chart is not defined"
+### "Invalid apartment credentials" on login
 
-- Hard refresh the page (**Ctrl + Shift + R** or **Cmd + Shift + R**)  
-- Check your internet connection — Chart.js loads from a CDN  
-- If offline, charts won't render (the rest of the app still works)  
+Check apartment name or registration ID and password. After 5 failed attempts, login is rate-limited for 15 minutes.
 
-### Page shows "Not found" at http://localhost:3456/
+### Database connection errors
 
-- Restart the dev server: `npm run dev`  
-- Make sure you're in the correct project folder  
+- Confirm `DATABASE_URL` uses the **pooler** URL on Vercel (Neon: `-pooler` in hostname)  
+- Use `DIRECT_DATABASE_URL` only for migrations, not runtime  
+- Ensure `?sslmode=require` is in the connection string for cloud DBs  
 
-### "read-only file system" or saves fail on Vercel
+### Password reset email not sent
 
-This means **Upstash Redis is not connected**. Vercel's server cannot write files — it needs a database.
-
-1. Open your project at [vercel.com](https://vercel.com) (e.g. [localhostbill.vercel.app](https://localhostbill.vercel.app/))  
-2. Go to **Storage** → **Create Database** → **Upstash Redis**  
-3. Connect it to your project (this sets `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`)  
-4. **Redeploy** the project (Deployments → ⋯ → Redeploy)  
-
-After that, saving bills, photos, and settings will work.
+Configure `RESEND_API_KEY` or all `SMTP_*` variables. Check Vercel function logs. Admin can set passwords directly from Settings → Members.
 
 ### Bill won't save — "Bill already locked"
 
-- That month's electricity was already saved on the server  
-- Go to **Configuration → Danger Zone → Unlock Single Month**, pick the month and year, click **Unlock Month**  
-- Or use **Reset Bills** to clear all months at once  
+Go to **Settings → Danger Zone → Unlock Single Month**, or unlock via API `DELETE /api/bills/[monthKey]/lock` (Admin only).
 
-### Sidebar doesn't open on mobile
+### Charts empty on dashboard
 
-- Tap the **☰** button in the top-left corner  
-- Hard refresh if you recently updated the app  
+Charts need at least one **locked** month with electricity entered. Lock a bill on the Bills page first.
 
-### Fonts or logo look wrong
+### Member default password
 
-- Fonts are self-hosted in `assets/fonts/` — no internet needed  
-- Logo is at `assets/images/Logo.png`  
-- Favicon is `favicon.ico` in the project root  
+New members get password **`1234`**. They should change it via email reset or ask Admin to set a new password.
 
-### Data disappeared after deploy
+### Prisma migrate errors locally
 
-- You likely didn't connect Redis on Vercel  
-- Follow [Step 3 in Deploy](#step-3--add-redis-for-permanent-storage-important)  
+```bash
+npx prisma migrate reset   # WARNING: wipes local DB
+npx prisma migrate dev
+```
 
 ---
 
@@ -531,14 +484,32 @@ After that, saving bills, photos, and settings will work.
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | HTML5, CSS3, vanilla JavaScript |
-| Charts | [Chart.js 4](https://www.chartjs.org/) (CDN) |
+| Frontend | Next.js 14 (App Router), React 18, TypeScript |
+| Styling | Vanilla CSS (original `localhost.css` theme) |
+| Charts | Chart.js 4 + react-chartjs-2 |
 | Fonts | Figtree & Plus Jakarta Sans (self-hosted) |
-| Local server | Node.js (`dev-server.mjs`) |
-| Production API | Vercel Serverless Functions |
-| Database | Upstash Redis (production) / JSON file (local) |
+| Backend | Next.js Route Handlers |
+| ORM | Prisma 5 |
+| Database | PostgreSQL 15+ |
+| Auth | JWT (jose) + HTTP-only cookies |
+| Passwords | bcrypt (cost 12) |
+| Encryption | AES-256-GCM (NID, bank data) |
+| Validation | Zod |
+| Email | Nodemailer / Resend |
+| Hosting | Vercel |
 
-No webpack, no npm build step, no framework — just open `index.html` through the dev server or Vercel.
+---
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server (port 3000) |
+| `npm run build` | Production build |
+| `npm run start` | Run production server locally |
+| `npm run db:migrate` | Create/apply migrations (dev) |
+| `npm run db:push` | Push schema without migration files |
+| `npm run db:studio` | Open Prisma Studio GUI |
 
 ---
 
