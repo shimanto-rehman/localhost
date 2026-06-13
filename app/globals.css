@@ -1216,6 +1216,11 @@ a.nav-link {
   .lp-section-title { font-size: 26px; }
   .lp-cta-title { font-size: 30px; }
   .lp-nav__links { display: none; }
+  .lp-nav__inner { gap: 0; }
+  .lp-nav__brand { flex: 1; }
+  .lp-nav__actions { gap: 8px; }
+  .lp-nav__actions .lp-btn--ghost { display: none; }
+  .lp-nav__actions .lp-btn--primary { padding: 9px 16px; font-size: 13px; }
   .lp-trust__inner { gap: 18px; }
   .mock-screen { height: 280px; }
   .mock-sb { width: 90px; }

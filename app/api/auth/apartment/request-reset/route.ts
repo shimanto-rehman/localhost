@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     console.warn(`Email not configured — apartment password reset link for ${apartment.name}:`, resetUrl);
     return jsonOk({
       success: true,
-      message: 'We could not send the email. Please ask your server admin to configure email delivery.',
+      message: 'Reset link generated, but email delivery is not configured. Please contact your apartment admin.',
       emailSent: false,
     });
   } catch (err) {

@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Ambient } from '@/components/layout/Ambient';
 import { useToast } from '@/components/providers/ToastProvider';
 import { LOGO_SRC } from '@/lib/constants';
+
+// Memoised so it never re-renders when form state changes
+const StableAmbient = memo(Ambient);
 
 function AuthField({
   label,
@@ -158,7 +161,7 @@ export function AuthLanding() {
 
   return (
     <>
-      <Ambient />
+      <StableAmbient />
       <div className="auth-page">
             <div className={`auth-shell${tab === 'register' ? ' auth-shell--wide' : ''}`}>
               {/* Brand panel — always visible, balances the layout */}
