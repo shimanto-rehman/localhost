@@ -42,6 +42,16 @@ export const DEFAULT_OPTIONAL_COSTS = [
 ];
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhostbill.vercel.app';
+export const LOGO_SRC = '/assets/images/Logo.webp';
+
+export const MFS_WALLET_TYPES = [
+  'Bkash', 'Rocket', 'Nagad', 'Upay', 'Tap', 'Surecash', 'OkWallet', 'UCash',
+] as const;
+
+export type MfsWalletType = typeof MFS_WALLET_TYPES[number];
+
+/** Expense categories that count toward the automatic meal cost pool (when no fixed rate). */
+export const MEAL_POOL_EXPENSE_CATEGORIES = ['Food'] as const;
 export const SITE_NAME = 'LocalHost';
 export const SITE_DESCRIPTION =
   'Smart apartment bill splitter for flatmates in Bangladesh. Split rent, utilities, meals, and personal expenses fairly with LocalHost.';

@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { fmt, monthKey, monthLabel } from '@/lib/utils';
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_COLORS, MONTH_NAMES } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
+import { expenseKey } from '@/lib/api/cache-keys';
+import { memberHasPerm } from '@/lib/client-permissions';
 
 type ExpenseItem = { id: string; itemName: string; price: number; category: string };
 type CalcResult = {
@@ -28,26 +31,17 @@ export default function ExpensesPage() {
   const { members, currentMember } = useApp();
   const { toast } = useToast();
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-  const [calc, setCalc] = useState<ExpenseCalc | null>(null);
   const [forms, setForms] = useState<Record<string, { name: string; category: string; price: string }>>({});
 
   const mk = monthKey(month);
-
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/expenses/${mk}`);
-    if (res.ok) {
-      const data = await res.json();
-      setCalc(data?.calculation || null);
-    }
-  }, [mk]);
-
-  useEffect(() => { load(); }, [load]);
+  const { data, mutate } = useSWR<{ calculation?: ExpenseCalc }>(expenseKey(mk));
+  const calc = data?.calculation ?? null;
 
   const shiftMonth = (delta: number) =>
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
 
   const canEditFor = (memberId: string) =>
-    !!(currentMember && (currentMember.id === memberId || currentMember.isAdmin));
+    !!(currentMember && (currentMember.id === memberId || memberHasPerm(currentMember, 'edit_any_expense')));
 
   const getForm = (memberId: string) =>
     forms[memberId] || { name: '', category: 'Other', price: '' };
@@ -71,7 +65,7 @@ export default function ExpensesPage() {
     if (!res.ok) { const d = await res.json(); toast(d.error || 'Could not add expense', 'error'); return; }
     toast('Expense added');
     setForm(memberId, { name: '', price: '', category: 'Other' });
-    load();
+    mutate();
   };
 
   const removeExpense = async (itemId: string, memberId: string) => {
@@ -79,7 +73,7 @@ export default function ExpensesPage() {
     const res = await fetch(`/api/expenses/${mk}/${itemId}`, { method: 'DELETE' });
     if (!res.ok) { toast('Could not remove', 'error'); return; }
     toast('Expense removed');
-    load();
+    mutate();
   };
 
   const baseNames = calc?.baseMembers?.map((r) => r.name).join(', ') || '';

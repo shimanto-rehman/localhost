@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { hashPassword, validatePasswordStrength } from '@/lib/password';
+import { hashPassword, validateMemberPassword } from '@/lib/password';
 import {
   requireAptSession,
   requireMemberSession,
@@ -21,8 +21,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     requireAdmin(memberSession);
 
     const { password } = await req.json();
-    const strengthErr = validatePasswordStrength(password);
-    if (strengthErr) return jsonError(strengthErr, 400);
+    const pwdErr = validateMemberPassword(password);
+    if (pwdErr) return jsonError(pwdErr, 400);
 
     const member = await prisma.member.findFirst({
       where: { id, apartmentId: apt.apartmentId },

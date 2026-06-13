@@ -13,39 +13,88 @@ export interface ShoppingEntry {
 export interface MealMemberSummary {
   memberId: string;
   mealCount: number;
+  /** Total paid toward the pool (Food expenses + meal shopping entries). */
   shoppingContribution: number;
+  foodContribution: number;
+  mealShoppingContribution: number;
   mealCostDue: number;
   net: number;
+  mealCountBySlot?: Record<number, number>;
+}
+
+/** memberId → mealSlot → optedIn (default true when missing). */
+export type MealSlotOptInMatrix = Record<string, Record<number, boolean>>;
+
+export type MealRateMode = 'fixed' | 'auto';
+
+export function isMealSlotOptedIn(
+  matrix: MealSlotOptInMatrix | undefined,
+  memberId: string,
+  mealSlot: number,
+): boolean {
+  if (!matrix) return true;
+  const memberSlots = matrix[memberId];
+  if (!memberSlots) return true;
+  return memberSlots[mealSlot] !== false;
+}
+
+export function filterEligibleMealRecords(
+  records: MealRecord[],
+  slotOptInMatrix?: MealSlotOptInMatrix,
+): MealRecord[] {
+  if (!slotOptInMatrix) return records;
+  return records.filter((r) => isMealSlotOptedIn(slotOptInMatrix, r.memberId, r.mealSlot));
 }
 
 export function calculateMealCosts(
   records: MealRecord[],
   shopping: ShoppingEntry[],
-  rateOverride?: number | null
+  rateOverride?: number | null,
+  slotOptInMatrix?: MealSlotOptInMatrix,
+  foodExpenses?: ShoppingEntry[],
 ): {
   totalShoppingPool: number;
+  foodExpensePool: number;
+  shoppingPool: number;
   totalMealCount: number;
   perMealCost: number;
+  rateMode: MealRateMode;
   memberSummaries: MealMemberSummary[];
   mealSurplus: number;
   memberMealCosts: Record<string, number>;
 } {
-  const totalShoppingPool = shopping.reduce((s, e) => s + e.amount, 0);
-  const confirmed = records.filter((r) => r.isConfirmed);
+  const eligibleRecords = filterEligibleMealRecords(records, slotOptInMatrix);
+  const shoppingPool = shopping.reduce((s, e) => s + e.amount, 0);
+  const foodExpensePool = (foodExpenses ?? []).reduce((s, e) => s + e.amount, 0);
+  const autoPool = foodExpensePool + shoppingPool;
+
+  const confirmed = eligibleRecords.filter((r) => r.isConfirmed);
   const totalMealCount = confirmed.length;
 
+  const rateMode: MealRateMode = rateOverride != null ? 'fixed' : 'auto';
   const perMealCost =
     rateOverride != null
       ? rateOverride
       : totalMealCount > 0
-        ? Math.round((totalShoppingPool / totalMealCount) * 100) / 100
+        ? Math.round((autoPool / totalMealCount) * 100) / 100
         : 0;
 
+  const totalShoppingPool = autoPool;
+
   const mealCountByMember: Record<string, number> = {};
+  const mealCountByMemberSlot: Record<string, Record<number, number>> = {};
+  const foodByMember: Record<string, number> = {};
   const shoppingByMember: Record<string, number> = {};
 
   confirmed.forEach((r) => {
     mealCountByMember[r.memberId] = (mealCountByMember[r.memberId] || 0) + 1;
+    if (!mealCountByMemberSlot[r.memberId]) mealCountByMemberSlot[r.memberId] = {};
+    mealCountByMemberSlot[r.memberId][r.mealSlot] =
+      (mealCountByMemberSlot[r.memberId][r.mealSlot] || 0) + 1;
+  });
+
+  (foodExpenses ?? []).forEach((e) => {
+    foodByMember[e.memberId] = (foodByMember[e.memberId] || 0) + e.amount;
   });
 
   shopping.forEach((s) => {
@@ -54,7 +103,9 @@ export function calculateMealCosts(
 
   const allMemberIds = new Set([
     ...Object.keys(mealCountByMember),
+    ...Object.keys(foodByMember),
     ...Object.keys(shoppingByMember),
+    ...(foodExpenses ?? []).map((e) => e.memberId),
     ...shopping.map((s) => s.memberId),
     ...confirmed.map((r) => r.memberId),
   ]);
@@ -64,25 +115,33 @@ export function calculateMealCosts(
 
   allMemberIds.forEach((memberId) => {
     const mealCount = mealCountByMember[memberId] || 0;
-    const shoppingContribution = shoppingByMember[memberId] || 0;
+    const foodContribution = foodByMember[memberId] || 0;
+    const mealShoppingContribution = shoppingByMember[memberId] || 0;
+    const shoppingContribution = foodContribution + mealShoppingContribution;
     const mealCostDue = Math.ceil(perMealCost * mealCount);
     memberMealCosts[memberId] = mealCostDue;
     memberSummaries.push({
       memberId,
       mealCount,
       shoppingContribution,
+      foodContribution,
+      mealShoppingContribution,
       mealCostDue,
       net: mealCostDue - shoppingContribution,
+      mealCountBySlot: mealCountByMemberSlot[memberId] || {},
     });
   });
 
   const collectedMeals = Object.values(memberMealCosts).reduce((s, v) => s + v, 0);
-  const mealSurplus = collectedMeals - totalShoppingPool;
+  const mealSurplus = collectedMeals - autoPool;
 
   return {
     totalShoppingPool,
+    foodExpensePool,
+    shoppingPool,
     totalMealCount,
     perMealCost,
+    rateMode,
     memberSummaries,
     mealSurplus,
     memberMealCosts,
@@ -116,7 +175,6 @@ export function getWeeksInMonth(monthKey: string, weekStartDay: number): Date[][
   const firstOfMonth = new Date(year, month - 1, 1);
   const lastOfMonth = new Date(year, month, 0);
 
-  // Find the weekStartDay on or before the first day of the month
   const weekStart = new Date(firstOfMonth);
   while (weekStart.getDay() !== weekStartDay) {
     weekStart.setDate(weekStart.getDate() - 1);
@@ -125,7 +183,6 @@ export function getWeeksInMonth(monthKey: string, weekStartDay: number): Date[][
   const weeks: Date[][] = [];
   const d = new Date(weekStart);
 
-  // Build complete 7-day weeks until we've covered the whole month
   while (d <= lastOfMonth) {
     const week: Date[] = [];
     for (let i = 0; i < 7; i++) {
@@ -147,7 +204,7 @@ export function getCurrentWeekIndex(monthKey: string, weekStartDay: number): num
   }
   const todayStr = today.toISOString().slice(0, 10);
   const idx = weeks.findIndex((week) =>
-    week.some((d) => d.toISOString().slice(0, 10) === todayStr)
+    week.some((d) => d.toISOString().slice(0, 10) === todayStr),
   );
   return idx >= 0 ? idx : 0;
 }

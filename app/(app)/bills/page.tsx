@@ -1,11 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { fmt, monthKey, monthLabel } from '@/lib/utils';
 import { MONTH_NAMES } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
+import { billCalcKey, billKey, billPaymentsKey } from '@/lib/api/cache-keys';
+import { PaymentMethodsModal } from '@/components/ui/PaymentMethodsModal';
+import { BillPaymentControls, BillPaymentBadge, type PaymentRow } from '@/components/bills/BillPaymentControls';
+import { memberHasPerm } from '@/lib/client-permissions';
 
 const BILL_LABELS: Record<string, string> = {
   fixedBucket: '🏠 Rent + Gas + Water + Service',
@@ -37,37 +42,44 @@ export default function BillsPage() {
   const { members, currentMember, apartment } = useApp();
   const { toast } = useToast();
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-  const [bill, setBill] = useState<Record<string, unknown> | null>(null);
-  const [calc, setCalc] = useState<CalcData | null>(null);
-  const [optionalNames, setOptionalNames] = useState<{ id: string; name: string }[]>([]);
   const [electricity, setElectricity] = useState('');
   const [adjTypes, setAdjTypes] = useState<Record<string, 'lend' | 'borrow'>>({});
   const [adjLabels, setAdjLabels] = useState<Record<string, string>>({});
   const [adjAmounts, setAdjAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [payModalOpen, setPayModalOpen] = useState(false);
 
   const mk = monthKey(month);
-  const canSubmit = currentMember?.isAdmin || currentMember?.isBillManager;
-  const canAdjust = currentMember?.isAdmin || currentMember?.isBillManager;
+  const { data: billData, mutate: mutateBill } = useSWR<Record<string, unknown>>(billKey(mk));
+  const bill = billData ?? null;
   const isLocked = Boolean(bill?.isLocked);
+  const { data: calcData, mutate: mutateCalc } = useSWR<{
+    calculation?: CalcData;
+    optionalCostDetails?: {
+      id: string; name: string; amount: number;
+      optedInMemberIds: string[]; optedInCount: number; perHead: number;
+    }[];
+  }>(billCalcKey(mk));
+  const { data: payData, mutate: mutatePayments } = useSWR<{ payments: PaymentRow[] }>(
+    isLocked ? billPaymentsKey(mk) : null,
+  );
+
+  const calc = calcData?.calculation ?? null;
+  const optionalDetails = calcData?.optionalCostDetails || [];
+  const canSubmit = memberHasPerm(currentMember, 'lock_bills');
+  const canAdjust = memberHasPerm(currentMember, 'bill_adjustments');
   const billManagerId = apartment?.billManagerId;
-  const manager = members.find((m) => m.id === billManagerId) || members[0];
+  const billManager = billManagerId ? members.find((m) => m.id === billManagerId) : undefined;
+  const paymentsByMember = new Map((payData?.payments ?? []).map((p) => [p.memberId, p]));
 
   const load = useCallback(async () => {
-    const [billRes, calcRes] = await Promise.all([
-      fetch(`/api/bills/${mk}`),
-      fetch(`/api/bills/${mk}/calculation`),
-    ]);
-    const billData = billRes.ok ? await billRes.json() : null;
-    const calcData = calcRes.ok ? await calcRes.json() : null;
-    setBill(billData);
-    setCalc(calcData?.calculation || null);
-    setOptionalNames(calcData?.optionalCostNames || []);
+    await Promise.all([mutateBill(), mutateCalc(), mutatePayments()]);
+  }, [mutateBill, mutateCalc, mutatePayments]);
+
+  useEffect(() => {
     if (billData?.electricity != null) setElectricity(String(billData.electricity));
     else setElectricity('');
-  }, [mk]);
-
-  useEffect(() => { load(); }, [load]);
+  }, [billData]);
 
   const shiftMonth = (delta: number) =>
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
@@ -238,19 +250,34 @@ export default function BillsPage() {
                           </div>
                         );
                       })}
-                      {/* Optional costs */}
-                      {Object.entries(r.breakdown.optional || {}).map(([id, v]) => {
-                        if (!v) return null;
+                      {/* Optional costs (per-member opt-in) */}
+                      {optionalDetails.map((oc) => {
+                        const v = r.breakdown.optional?.[oc.id] || 0;
+                        const optedIn = oc.optedInMemberIds.includes(r.id);
                         return (
-                          <div key={id} className="bill-row">
-                            <span className="bill-row__label">{optionalNames.find((o) => o.id === id)?.name || id}</span>
-                            <span className="bill-row__value">{fmt(v)}</span>
+                          <div
+                            key={oc.id}
+                            className={`bill-row${optedIn ? '' : ' bill-row--skipped'}`}
+                          >
+                            <span className="bill-row__label">
+                              {oc.name}
+                              {optedIn ? (
+                                <span className="opt-in-chip">
+                                  {oc.optedInCount} members · {fmt(oc.perHead)} each
+                                </span>
+                              ) : (
+                                <span className="opt-in-chip opt-in-chip--off">Not using</span>
+                              )}
+                            </span>
+                            <span className="bill-row__value">{optedIn ? fmt(v) : '—'}</span>
                           </div>
                         );
                       })}
                       {r.adjustments?.map((a) => (
-                        <div key={a.id} className="bill-row bill-row--adj">
-                          <span className="bill-row__label">{a.type === 'lend' ? 'Lent' : 'Borrowed'} · {a.label}</span>
+                        <div key={a.id} className={`bill-row bill-row--adj${a.label.startsWith('Due ·') ? ' bill-row--due-tag' : ''}`}>
+                          <span className="bill-row__label">
+                            {a.label.startsWith('Due ·') ? '↩ ' : ''}{a.type === 'lend' ? 'Lent' : 'Borrowed'} · {a.label}
+                          </span>
                           <span className={`bill-row__value bill-row__value--${a.type === 'lend' ? 'lend' : 'borrow'}`}>
                             {a.type === 'lend' ? '+' : '−'}{fmt(Number(a.amount)).slice(1)}
                           </span>
@@ -266,23 +293,25 @@ export default function BillsPage() {
               )}
 
               {/* ── Payment Summary ── */}
-              {manager && results.length > 0 && (
+              {billManager && results.length > 0 && (
                 <>
                   <div className="section-head payment-section-head">
-                    <div className="section-head__title">Payment Summary <span>Send to Bill Manager</span></div>
+                    <div className="section-head__title">
+                      Payment Summary <span>Send to <strong>{billManager.name}</strong></span>
+                    </div>
                     <span className="chip chip--accent payment-manager-chip">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M5 12h14M12 5l7 7-7 7" />
                       </svg>
-                      {manager.name}
+                      {billManager.name}
                     </span>
                   </div>
 
                   <div className="grid-3">
                     {results.map((r, i) => {
-                      const isManagerCard = r.id === manager.id;
+                      const isManagerCard = r.id === billManager.id;
                       const sendAmount = isManagerCard
-                        ? results.filter((x) => x.id !== manager.id).reduce((s, x) => s + x.total, 0)
+                        ? results.filter((x) => x.id !== billManager.id).reduce((s, x) => s + x.total, 0)
                         : r.total;
                       const adjType = adjTypes[r.id] || 'lend';
 
@@ -294,12 +323,26 @@ export default function BillsPage() {
                               <div className="member-card__name">{r.name}</div>
                               {isManagerCard
                                 ? <span className="manager-badge">Bill Manager</span>
-                                : <div className="payment-card__send">Send to <strong>{manager.name}</strong></div>
+                                : <div className="payment-card__send">Send to <strong>{billManager.name}</strong></div>
                               }
                             </div>
+                            {isManagerCard && (
+                              <button
+                                type="button"
+                                className="payment-card__view-pay"
+                                onClick={() => setPayModalOpen(true)}
+                                aria-label="View Bill Manager payment details"
+                                title="View bank & wallet details"
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                  <circle cx="12" cy="12" r="3" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
 
-                          <div className="payment-card__rows">
+                            <div className="payment-card__rows">
                             <div className="bill-row">
                               <span className="bill-row__label">Bill share</span>
                               <span className="bill-row__value">{fmt(r.baseTotal)}</span>
@@ -317,6 +360,17 @@ export default function BillsPage() {
                               <span className="bill-row__value payment-card__amount">{fmt(sendAmount)}</span>
                             </div>
                           </div>
+
+                          {!isManagerCard && (
+                            <BillPaymentControls
+                              monthKey={mk}
+                              memberId={r.id}
+                              total={r.total}
+                              payment={paymentsByMember.get(r.id)}
+                              canEdit={canAdjust}
+                              onUpdated={load}
+                            />
+                          )}
 
                           {!isManagerCard && (r.adjustments?.length > 0 || canAdjust) && (
                             <div className="adj-panel" data-member={r.id}>
@@ -442,15 +496,34 @@ export default function BillsPage() {
                           {results.map((r) => <td key={r.id} style={{ fontFamily: 'var(--font-head)', fontWeight: 600, color: 'var(--accent)' }}>{fmt(r.breakdown.meals)}</td>)}
                         </tr>
                       )}
-                      {optionalNames.map((oc) => (
+                      {optionalDetails.map((oc) => (
                         <tr key={oc.id}>
-                          <td>{oc.name}</td>
-                          <td style={{ color: 'var(--text-dim)' }}>—</td>
-                          {results.map((r) => (
-                            <td key={r.id} style={{ fontFamily: 'var(--font-head)', fontWeight: 600, color: 'var(--accent)' }}>
-                              {fmt(r.breakdown.optional?.[oc.id] || 0)}
-                            </td>
-                          ))}
+                          <td>
+                            {oc.name}
+                            <span className="opt-in-chip opt-in-chip--table">
+                              {oc.optedInCount} members · {fmt(oc.perHead)}/head
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-head)', fontWeight: 600, color: 'var(--accent)' }}>
+                            {fmt(oc.amount)}
+                          </td>
+                          {results.map((r) => {
+                            const optedIn = oc.optedInMemberIds.includes(r.id);
+                            const amt = r.breakdown.optional?.[oc.id] || 0;
+                            return (
+                              <td
+                                key={r.id}
+                                className={optedIn ? '' : 'bill-table-cell--skipped'}
+                                style={{
+                                  fontFamily: 'var(--font-head)',
+                                  fontWeight: optedIn ? 600 : 400,
+                                  color: optedIn ? 'var(--accent)' : 'var(--text-dim)',
+                                }}
+                              >
+                                {optedIn ? fmt(amt) : '—'}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                       <tr className="total-row">
@@ -494,6 +567,15 @@ export default function BillsPage() {
           )}
         </div>
       </div>
+
+      {billManagerId && (
+        <PaymentMethodsModal
+          memberId={billManagerId}
+          memberName={billManager?.name}
+          open={payModalOpen}
+          onClose={() => setPayModalOpen(false)}
+        />
+      )}
     </section>
   );
 }

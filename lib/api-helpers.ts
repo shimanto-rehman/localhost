@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAptSessionFromRequest, getMemberSessionFromRequest, MemberSession } from './auth';
+import type { PermissionKey } from './role-permissions';
+import { resolveMemberPermissionKeys } from './role-permissions';
 
 export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
@@ -36,6 +38,18 @@ export function requireBillManagerOrAdmin(member: MemberSession) {
   }
 }
 
+export async function requirePermission(member: MemberSession, permission: PermissionKey) {
+  const keys = await resolveMemberPermissionKeys(member.apartmentId, member.memberId);
+  if (!keys.has(permission)) {
+    throw new ApiError('You do not have permission for this action', 403);
+  }
+}
+
+export async function memberCan(member: MemberSession, permission: PermissionKey): Promise<boolean> {
+  const keys = await resolveMemberPermissionKeys(member.apartmentId, member.memberId);
+  return keys.has(permission);
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -52,6 +66,10 @@ export function handleApiError(err: unknown) {
     return jsonError(err.message, err.status, err.fields);
   }
   console.error(err);
+  const prismaCode = (err as { code?: string })?.code;
+  if (prismaCode === 'P1001' || prismaCode === 'P1002') {
+    return jsonError('Database is temporarily unavailable. Please try again in a moment.', 503);
+  }
   return jsonError('Something went wrong. Please try again.', 500);
 }
 

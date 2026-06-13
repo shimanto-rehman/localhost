@@ -42,11 +42,11 @@ export default function ResetPasswordPage() {
       <div className="auth-page">
         <div className="auth-card">
           <h1 style={{ fontFamily: 'var(--font-head)', marginBottom: 8 }}>Reset Password</h1>
-          <p className="form-hint" style={{ marginBottom: 24 }}>Enter your new password below.</p>
+          <p className="form-hint" style={{ marginBottom: 24 }}>Choose a simple password you&apos;ll remember (at least 4 characters).</p>
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 16 }}>
               <label className="form-label">New Password</label>
-              <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+              <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={4} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label className="form-label">Confirm Password</label>

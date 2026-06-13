@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { prefetchRoute } from '@/lib/api/prefetch';
 
 const NAV = [
   { href: '/dashboard', label: 'Home', icon: 'grid' },
@@ -51,6 +52,8 @@ export function BottomNav() {
             key={item.href}
             href={item.href}
             className={`bottom-nav__btn${pathname === item.href ? ' active' : ''}`}
+            onMouseEnter={() => prefetchRoute(item.href)}
+            onFocus={() => prefetchRoute(item.href)}
           >
             <NavIcon type={item.icon} />
             {item.label}

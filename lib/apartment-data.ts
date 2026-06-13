@@ -2,6 +2,10 @@ import { prisma } from './prisma';
 import { decrypt } from './encryption';
 import { DEFAULT_FIXED_COSTS, DEFAULT_OPTIONAL_COSTS } from './constants';
 import type { FixedCostItem, OptionalCostItem, OptInMatrix, RentSplitItem } from './calculations/bills';
+import type { MealSlotOptInMatrix } from './calculations/meals';
+import { buildMealSlotOptInMatrix, syncMealMemberSlots } from './meal-member-slots';
+
+const DEFAULT_MEAL_NAMES = ['Breakfast', 'Lunch', 'Evening Snacks', 'Dinner'];
 
 export async function seedApartmentDefaults(apartmentId: string, memberIds: string[]) {
   await prisma.fixedCost.createMany({
@@ -21,11 +25,19 @@ export async function seedApartmentDefaults(apartmentId: string, memberIds: stri
       })),
     });
   }
-  await prisma.mealConfig.create({ data: { apartmentId } });
+  await prisma.mealConfig.create({
+    data: {
+      apartmentId,
+      mealsPerDay: DEFAULT_MEAL_NAMES.length,
+      mealNames: DEFAULT_MEAL_NAMES,
+    },
+  });
+  await syncMealMemberSlots(apartmentId, DEFAULT_MEAL_NAMES.length);
 }
 
 export async function getApartmentConfig(apartmentId: string) {
-  const [apartment, members, fixedCosts, optionalCosts, rentSplits, mealConfig] = await Promise.all([
+  const [apartment, members, fixedCosts, optionalCosts, rentSplits, mealConfig, mealSlotRows] =
+    await Promise.all([
     prisma.apartment.findUnique({ where: { id: apartmentId } }),
     prisma.member.findMany({ where: { apartmentId }, orderBy: { createdAt: 'asc' } }),
     prisma.fixedCost.findMany({ where: { apartmentId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
@@ -36,6 +48,7 @@ export async function getApartmentConfig(apartmentId: string) {
     }),
     prisma.rentSplit.findMany({ where: { apartmentId } }),
     prisma.mealConfig.findUnique({ where: { apartmentId } }),
+    prisma.mealMemberSlot.findMany({ where: { apartmentId } }),
   ]);
 
   if (!apartment) return null;
@@ -50,6 +63,17 @@ export async function getApartmentConfig(apartmentId: string) {
       if (optInMatrix[oc.id][m.id] === undefined) optInMatrix[oc.id][m.id] = true;
     });
   });
+
+  const mealsPerDay = mealConfig?.mealsPerDay ?? 2;
+  const mealSlotOptInMatrix: MealSlotOptInMatrix = buildMealSlotOptInMatrix(
+    members.filter((m) => m.isActive).map((m) => m.id),
+    mealsPerDay,
+    mealSlotRows.map((r) => ({
+      memberId: r.memberId,
+      mealSlot: r.mealSlot,
+      optedIn: r.optedIn,
+    })),
+  );
 
   return {
     apartment,
@@ -78,11 +102,12 @@ export async function getApartmentConfig(apartmentId: string) {
       fixedAmount: r.fixedAmount,
     })) as RentSplitItem[],
     mealConfig: mealConfig || {
-      mealsPerDay: 2,
-      mealNames: ['Lunch', 'Dinner'],
+      mealsPerDay: 4,
+      mealNames: DEFAULT_MEAL_NAMES,
       weekStartDay: 6,
       rateOverride: null,
     },
+    mealSlotOptInMatrix,
   };
 }
 

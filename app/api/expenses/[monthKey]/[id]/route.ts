@@ -7,6 +7,7 @@ import {
   jsonOk,
   jsonError,
   handleApiError,
+  memberCan,
 } from '@/lib/api-helpers';
 
 type Params = { params: Promise<{ monthKey: string; id: string }> };
@@ -22,7 +23,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
     if (!existing) return jsonError('Not found', 404);
 
-    if (existing.memberId !== memberSession.memberId && !memberSession.isAdmin) {
+    if (
+      existing.memberId !== memberSession.memberId &&
+      !(await memberCan(memberSession, 'edit_any_expense'))
+    ) {
       return jsonError('Not allowed', 403);
     }
 
@@ -57,7 +61,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     });
     if (!existing) return jsonOk({ success: true });
 
-    if (existing.memberId !== memberSession.memberId && !memberSession.isAdmin) {
+    if (
+      existing.memberId !== memberSession.memberId &&
+      !(await memberCan(memberSession, 'edit_any_expense'))
+    ) {
       return jsonError('Not allowed', 403);
     }
 

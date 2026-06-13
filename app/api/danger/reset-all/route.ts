@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       await tx.optionalCost.deleteMany({ where: { apartmentId } });
       await tx.fixedCost.deleteMany({ where: { apartmentId } });
       await tx.rentSplit.deleteMany({ where: { apartmentId } });
-      await tx.bankAccount.deleteMany({ where: { apartmentId } });
+      await tx.memberPaymentMethod.deleteMany({ where: { apartmentId } });
       await tx.memberSession.deleteMany({ where: { member: { apartmentId } } });
       await tx.passwordResetToken.deleteMany({ where: { member: { apartmentId } } });
       await tx.member.deleteMany({ where: { apartmentId } });

@@ -6,7 +6,8 @@ import { Ambient } from '@/components/layout/Ambient';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { AppProvider } from '@/components/providers/AppProvider';
+import { Preloader } from '@/components/layout/Preloader';
+import { AppProvider, useApp } from '@/components/providers/AppProvider';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -14,31 +15,36 @@ const PAGE_TITLES: Record<string, string> = {
   '/meals': 'Meal Management',
   '/expenses': 'Expenses',
   '/settings': 'Configuration',
+  '/profile': 'My Profile',
 };
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { apartment, loading, error, refresh } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [checked, setChecked] = useState(false);
 
   const title = PAGE_TITLES[pathname] || 'LocalHost';
 
   useEffect(() => {
-    fetch('/api/auth/apartment/info')
-      .then((r) => {
-        if (!r.ok) router.replace('/');
-        else setChecked(true);
-      })
-      .catch(() => router.replace('/'));
-  }, [router]);
+    if (!loading && !apartment && !error) router.replace('/login');
+  }, [loading, apartment, error, router]);
 
-  if (!checked) {
+  if (error && !apartment) {
     return (
-      <div className="loader-overlay" role="status">
-        <div className="loader-text">Loading…</div>
+      <div className="app-load-error">
+        <p className="app-load-error__title">Could not load your apartment</p>
+        <p className="app-load-error__msg">{error.message}</p>
+        <button type="button" className="btn btn-primary" onClick={() => refresh()}>
+          Try again
+        </button>
       </div>
     );
+  }
+
+  if (!apartment) {
+    if (loading) return <Preloader />;
+    return null;
   }
 
   return (

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashToken } from '@/lib/encryption';
-import { hashPassword, validatePasswordStrength } from '@/lib/password';
+import { hashPassword, validateMemberPassword } from '@/lib/password';
 import { jsonOk, jsonError, handleApiError, logAudit } from '@/lib/api-helpers';
 
 export async function POST(req: NextRequest) {
@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
     if (!token || !password) return jsonError('Token and password required', 400);
     if (password !== confirmPassword) return jsonError('Passwords do not match', 400);
 
-    const strengthErr = validatePasswordStrength(password);
-    if (strengthErr) return jsonError(strengthErr, 400);
+    const pwdErr = validateMemberPassword(password);
+    if (pwdErr) return jsonError(pwdErr, 400);
 
     const resetToken = await prisma.passwordResetToken.findUnique({
       where: { tokenHash: hashToken(token) },

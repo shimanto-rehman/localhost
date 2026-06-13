@@ -22,6 +22,7 @@ export const defaultMetadata: Metadata = {
   ],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
+  // OG/Twitter images come from app/opengraph-image.tsx (1200x630, generated).
   openGraph: {
     type: 'website',
     locale: 'en_BD',
@@ -29,13 +30,11 @@ export const defaultMetadata: Metadata = {
     siteName: SITE_NAME,
     title: `${SITE_NAME} — Smart Apartment Bill Splitter`,
     description: SITE_DESCRIPTION,
-    images: [{ url: '/assets/images/Logo.png', width: 512, height: 512, alt: SITE_NAME }],
   },
   twitter: {
     card: 'summary_large_image',
     title: `${SITE_NAME} — Apartment Bill Splitter`,
     description: SITE_DESCRIPTION,
-    images: ['/assets/images/Logo.png'],
   },
   robots: {
     index: true,

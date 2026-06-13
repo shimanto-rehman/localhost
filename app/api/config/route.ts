@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAptSession, jsonOk, handleApiError } from '@/lib/api-helpers';
 import { getApartmentConfig } from '@/lib/apartment-data';
 import { formatAddress } from '@/lib/utils';
+import { mergeRolePermissions } from '@/lib/role-permissions';
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,6 +37,8 @@ export async function GET(req: NextRequest) {
       optInMatrix: config.optInMatrix,
       rentSplits: config.rentSplits,
       mealConfig: config.mealConfig,
+      mealSlotOptInMatrix: config.mealSlotOptInMatrix,
+      rolePermissions: mergeRolePermissions(config.apartment.rolePermissions),
     });
   } catch (err) {
     return handleApiError(err);

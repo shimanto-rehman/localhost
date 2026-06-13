@@ -2,15 +2,21 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isValidMonthKey } from '@/lib/utils';
 import { getBillSnapshotData } from '@/lib/apartment-data';
-import { calculateMealCosts } from '@/lib/calculations/meals';
+import { getMealSummary } from '@/lib/meal-summary';
+import { getBillCalculation } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
   requireBillManagerOrAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
+  logAudit,
 } from '@/lib/api-helpers';
+import { createNotificationsForMembers } from '@/lib/notifications';
+import { MONTH_NAMES } from '@/lib/constants';
+import { parseMonthKey } from '@/lib/utils';
 
 type Params = { params: Promise<{ monthKey: string }> };
 
@@ -21,7 +27,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireBillManagerOrAdmin(member);
+    await requirePermission(member, 'lock_bills');
 
     const existing = await prisma.monthlyBill.findUnique({
       where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey } },
@@ -44,33 +50,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const snap = mealMonth.snapshot as { memberMealCosts?: Record<string, number> };
       mealCosts = snap.memberMealCosts || {};
     } else {
-      const [records, shopping] = await Promise.all([
-        prisma.mealRecord.findMany({
-          where: {
-            apartmentId: apt.apartmentId,
-            mealDate: {
-              gte: new Date(`${monthKey}-01`),
-              lte: new Date(new Date(`${monthKey}-01`).getFullYear(), new Date(`${monthKey}-01`).getMonth() + 1, 0),
-            },
-          },
-        }),
-        prisma.mealShopping.findMany({
-          where: { apartmentId: apt.apartmentId, monthKey },
-        }),
-      ]);
-      const mealConfig = await prisma.mealConfig.findUnique({
-        where: { apartmentId: apt.apartmentId },
-      });
-      const calc = calculateMealCosts(
-        records.map((r) => ({
-          memberId: r.memberId,
-          mealDate: r.mealDate.toISOString().slice(0, 10),
-          mealSlot: r.mealSlot,
-          isConfirmed: r.isConfirmed,
-        })),
-        shopping.map((s) => ({ memberId: s.memberId, amount: s.amount })),
-        mealConfig?.rateOverride
-      );
+      const calc = await getMealSummary(apt.apartmentId, monthKey);
       mealCosts = calc.memberMealCosts;
     }
 
@@ -99,6 +79,44 @@ export async function POST(req: NextRequest, { params }: Params) {
         lockedById: member.memberId,
         snapshot,
       },
+    });
+
+    const calcAfterLock = await getBillCalculation(apt.apartmentId, monthKey);
+    if (calcAfterLock?.calculation?.results) {
+      await prisma.billMemberPayment.createMany({
+        data: calcAfterLock.calculation.results.map((r) => ({
+          billId: bill.id,
+          memberId: r.id,
+          status: 'unpaid',
+          amountDue: r.total,
+          amountPaid: 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const activeMembers = await prisma.member.findMany({
+      where: { apartmentId: apt.apartmentId, isActive: true },
+      select: { id: true },
+    });
+    const monthDate = parseMonthKey(monthKey);
+    const monthName = `${MONTH_NAMES[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+
+    await createNotificationsForMembers(
+      apt.apartmentId,
+      activeMembers.map((m) => m.id),
+      {
+        type: 'bill_locked',
+        title: `${monthName} bill is ready`,
+        body: `The ${monthName} electricity bill has been locked. Check your share and send payment to the Bill Manager.`,
+        href: '/bills',
+        meta: { monthKey },
+      },
+    );
+
+    await logAudit(apt.apartmentId, 'BILL_LOCKED', member.memberId, 'bill', bill.id, {
+      monthKey,
+      electricity,
     });
 
     return jsonOk(bill);

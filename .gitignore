@@ -5,3 +5,7 @@ data/store.json
 .env
 .env.local
 out/
+
+# Build artifacts & OS noise
+*.tsbuildinfo
+.DS_Store

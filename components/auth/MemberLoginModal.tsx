@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, type MemberInfo } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { initials, memberColor } from '@/lib/utils';
 
 // ── Bubble layout engine (ported from backup JS) ────────────────────────────
@@ -210,7 +211,7 @@ export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: ()
   const selectedItem = layout.items.find(item => item.isSelected);
 
   return (
-    <div className="modal-backdrop open" onClick={e => e.target === e.currentTarget && onClose()}>
+    <ModalBackdrop open={open} onClose={onClose}>
       <div className="modal modal--login">
         <div className="modal__title">Sign in</div>
         <div className="modal__sub">Tap your profile, then enter your password.</div>
@@ -240,10 +241,6 @@ export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: ()
               />
             )}
           </div>
-          {/* Selected member name label */}
-          <div className="login-selected-label">
-            {selectedItem?.member.name ?? ''}
-          </div>
         </div>
 
         <div className="login-password-wrap">
@@ -255,10 +252,13 @@ export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: ()
             id="loginPassword"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            placeholder="Enter your password"
+            placeholder="e.g. 1234"
             autoComplete="current-password"
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
           />
+          <p className="form-hint" style={{ marginTop: 0 }}>
+            Use the password set by your admin (default is 1234).
+          </p>
         </div>
 
         <div className="modal__actions">
@@ -273,6 +273,6 @@ export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: ()
           </button>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

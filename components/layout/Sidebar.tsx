@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useApp } from '@/components/providers/AppProvider';
 import { MemberLoginModal } from '@/components/auth/MemberLoginModal';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
+import { LOGO_SRC } from '@/lib/constants';
+import { prefetchRoute } from '@/lib/api/prefetch';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
@@ -48,10 +50,36 @@ function NavIcon({ type }: { type: string }) {
   );
 }
 
+function SyncStatusDot({ online }: { online: boolean }) {
+  return (
+    <div className="sidebar__meta">
+      <span
+        className={`sync-dot${online ? '' : ' offline'}`}
+        title={online ? 'Connected to server' : 'Offline or disconnected'}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const { apartment, currentMember, refresh, setCurrentMember } = useApp();
+  const { apartment, currentMember, loading, refresh, setCurrentMember } = useApp();
   const [loginOpen, setLoginOpen] = useState(false);
+  const [browserOnline, setBrowserOnline] = useState(true);
+
+  useEffect(() => {
+    const update = () => setBrowserOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    update();
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  const syncOnline = browserOnline && !loading && Boolean(apartment);
 
   const handleLogout = async () => {
     await fetch('/api/auth/member/logout', { method: 'POST' });
@@ -65,7 +93,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <aside className={`sidebar${open ? ' open' : ''}`} id="sidebar">
         <div className="sidebar__brand">
           <div className="sidebar__logo">
-            <Image className="sidebar__logo-img" src="/assets/images/Logo.png" alt="LocalHost logo" width={44} height={44} />
+            <Image className="sidebar__logo-img" src={LOGO_SRC} alt="LocalHost logo" width={44} height={44} />
           </div>
           <div>
             <div className="sidebar__title">{apartment?.name || 'LocalHost'}</div>
@@ -79,6 +107,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               href={item.href}
               className={`nav-link nav-link--link${pathname === item.href ? ' active' : ''}`}
               onClick={onClose}
+              onMouseEnter={() => prefetchRoute(item.href)}
+              onFocus={() => prefetchRoute(item.href)}
             >
               <NavIcon type={item.icon} />
               {item.label}
@@ -88,18 +118,37 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         <div className="sidebar__footer">
           <div className="sidebar-user">
             {currentMember ? (
-              <div className="sidebar-user__btn sidebar-user__btn--logged">
+              <Link
+                href="/profile"
+                className="sidebar-user__btn sidebar-user__btn--logged"
+                onClick={onClose}
+                onMouseEnter={() => prefetchRoute('/profile')}
+              >
                 <Avatar name={currentMember.name} photoUrl={currentMember.photoUrl} size="sm" />
                 <div className="sidebar-user__info">
                   <div className="sidebar-user__name">{currentMember.name}</div>
-                  <div className="sidebar-user__role">
-                    {currentMember.isAdmin ? 'Admin' : currentMember.isBillManager ? 'Bill Manager' : 'Member'}
+                  <div className="sidebar-user__meta-row">
+                    <SyncStatusDot online={syncOnline} />
+                    <div className="sidebar-user__role">
+                      {currentMember.isAdmin ? 'Admin' : currentMember.isBillManager ? 'Bill Manager' : 'Member'}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ) : (
               <button type="button" className="sidebar-user__btn" onClick={() => setLoginOpen(true)}>
-                <span className="sidebar-user__signin-label">Sign in to edit</span>
+                <div className="sidebar-user__avatar" style={{ background: 'var(--bg-card)', color: 'var(--text-dim)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </div>
+                <div className="sidebar-user__info">
+                  <div className="sidebar-user__meta-row">
+                    <SyncStatusDot online={syncOnline} />
+                    <span className="sidebar-user__signin-label">Sign in to edit</span>
+                  </div>
+                </div>
               </button>
             )}
             {currentMember && (

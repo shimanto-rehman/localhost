@@ -28,6 +28,11 @@ export const apartmentLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const apartmentRequestResetSchema = z.object({
+  identifier: z.string().trim().min(1),
+  email: z.string().trim().email(),
+});
+
 export const memberLoginSchema = z.object({
   memberId: z.string().uuid(),
   password: z.string().min(1),
@@ -63,6 +68,21 @@ export const mealShoppingSchema = z.object({
   purchaseDate: z.string(),
 });
 
+export const mealSettingsSchema = z.object({
+  mealsPerDay: z.number().int().min(1).max(6),
+  mealNames: z.array(z.string().trim().min(1).max(40)).min(1).max(6),
+  weekStartDay: z.number().int().min(0).max(6),
+  rateOverride: z.number().int().positive().nullable().optional(),
+}).refine((d) => d.mealNames.length === d.mealsPerDay, {
+  message: 'Meal names count must match meals per day',
+  path: ['mealNames'],
+});
+
+export const mealMemberSlotsPatchSchema = z.object({
+  memberId: z.string().uuid(),
+  slots: z.record(z.string(), z.boolean()),
+});
+
 export const expenseSchema = z.object({
   memberId: z.string().uuid().optional(),
   itemName: z.string().trim().min(1).max(80),
@@ -80,6 +100,61 @@ export const bankAccountSchema = z.object({
   mobileBankingNumber: z.string().regex(/^\+880\d{10}$/).optional().or(z.literal('')),
   mobileBankingType: z.enum(['bKash', 'Nagad', 'Rocket', 'Other']).optional(),
 });
+
+const mfsWalletEnum = z.enum([
+  'Bkash', 'Rocket', 'Nagad', 'Upay', 'Tap', 'Surecash', 'OkWallet', 'UCash',
+]);
+
+export const bankPaymentMethodSchema = z.object({
+  type: z.literal('bank'),
+  bankName: z.string().trim().min(2, 'Bank name is required').max(80),
+  accountNumber: z
+    .string()
+    .trim()
+    .min(3, 'Account number must be at least 3 digits')
+    .max(30)
+    .regex(/^\d+$/, 'Account number must contain digits only'),
+  branchName: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => v || undefined),
+  routingNumber: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => v || undefined)
+    .refine((v) => v === undefined || /^\d{9}$/.test(v), 'Routing number must be 9 digits'),
+});
+
+export const mfsPaymentMethodSchema = z.object({
+  type: z.literal('mfs'),
+  walletType: mfsWalletEnum,
+  accountNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\s+/g, ''))
+    .pipe(
+      z
+        .string()
+        .min(11, 'Use format 01XXXXXXXXX')
+        .max(14)
+        .regex(/^(\+8801|8801|01)\d{9}$/, 'Use a valid Bangladesh mobile number (01XXXXXXXXX)'),
+    )
+    .transform((v) => {
+      if (v.startsWith('+880')) return v.slice(3);
+      if (v.startsWith('880')) return v.slice(2);
+      return v;
+    }),
+});
+
+export const paymentMethodSchema = z.discriminatedUnion('type', [
+  bankPaymentMethodSchema,
+  mfsPaymentMethodSchema,
+]);
 
 export function zodFieldErrors(err: z.ZodError): Record<string, string> {
   const fields: Record<string, string> = {};

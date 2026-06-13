@@ -26,6 +26,23 @@ export async function GET(req: NextRequest) {
 
     if (!config) return jsonOk(null);
 
+    const mapExpense = (e: typeof expenses[0]) => ({
+      id: e.id,
+      memberId: e.memberId,
+      itemName: e.itemName,
+      price: e.price,
+      category: e.category,
+      expenseDate: e.expenseDate?.toISOString().slice(0, 10) ?? null,
+    });
+
+    const allByMonth: Record<string, ReturnType<typeof mapExpense>[]> = {};
+    expenses.forEach((e) => {
+      if (!allByMonth[e.monthKey]) allByMonth[e.monthKey] = [];
+      allByMonth[e.monthKey].push(mapExpense(e));
+    });
+    const memberIds = config.members.map((m) => m.id);
+    const carryCache: Record<string, Record<string, number>> = {};
+
     const monthlyTotals: { month: string; bills: number; meals: number; expenses: number }[] = [];
     const electricityTrend: { month: string; amount: number }[] = [];
     const gapTrend: { month: string; gap: number }[] = [];
@@ -87,21 +104,7 @@ export async function GET(req: NextRequest) {
       }
 
       const monthExpenses = expenses.filter((e) => e.monthKey === mk);
-      const mapExpense = (e: typeof expenses[0]) => ({
-        id: e.id,
-        memberId: e.memberId,
-        itemName: e.itemName,
-        price: e.price,
-        category: e.category,
-        expenseDate: e.expenseDate?.toISOString().slice(0, 10) ?? null,
-      });
-      const allByMonth: Record<string, ReturnType<typeof mapExpense>[]> = {};
-      expenses.forEach((e) => {
-        if (!allByMonth[e.monthKey]) allByMonth[e.monthKey] = [];
-        allByMonth[e.monthKey].push(mapExpense(e));
-      });
-      const memberIds = config.members.map((m) => m.id);
-      const carryIn = computeExpenseCarryIn(mk, allByMonth, memberIds);
+      const carryIn = computeExpenseCarryIn(mk, allByMonth, memberIds, carryCache);
       const expCalc = calcExpenseMonth(mk, monthExpenses.map(mapExpense), config.members, carryIn);
       const expenseTotal = expCalc.totalMonthSpend;
 

@@ -12,6 +12,7 @@ import {
   handleApiError,
 } from '@/lib/api-helpers';
 import { sanitizeMemberForClient } from '@/lib/apartment-data';
+import { seedMealMemberSlotsForMember } from '@/lib/meal-member-slots';
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
         optedIn: true,
       })),
     });
+
+    await seedMealMemberSlotsForMember(apt.apartmentId, member.id);
 
     return jsonOk(sanitizeMemberForClient(member), 201);
   } catch (err) {

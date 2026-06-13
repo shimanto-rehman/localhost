@@ -1,13 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
 import { fmt } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
-import { MONTH_NAMES } from '@/lib/constants';
+import { LOGO_SRC, MONTH_NAMES } from '@/lib/constants';
+import { CostCategoriesPanel } from '@/components/settings/CostCategoriesPanel';
+import { MemberOptionalCostsPanel } from '@/components/settings/MemberOptionalCostsPanel';
+import { MemberPaymentMethodsEditor } from '@/components/settings/MemberPaymentMethodsEditor';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { MemberMealSlotsPanel } from '@/components/settings/MemberMealSlotsPanel';
+import { MealSettingsPanel } from '@/components/settings/MealSettingsPanel';
+import { RolePermissionsPanel } from '@/components/settings/RolePermissionsPanel';
+import { ActivityLogPanel } from '@/components/settings/ActivityLogPanel';
+import type { OptInMatrix } from '@/lib/calculations/bills';
+import type { MealSlotOptInMatrix } from '@/lib/calculations/meals';
+import type { RolePermissionsConfig } from '@/lib/role-permissions';
+import { memberHasPerm } from '@/lib/client-permissions';
+import { CONFIG_KEY } from '@/lib/api/cache-keys';
 
-type Tab = 'members' | 'costs' | 'rent' | 'backup' | 'danger';
+type Tab = 'members' | 'costs' | 'meals' | 'rent' | 'activity' | 'backup' | 'danger';
 
 type TempMember = {
   id: string; name: string; photoUrl?: string | null;
@@ -15,10 +30,11 @@ type TempMember = {
 };
 
 export default function SettingsPage() {
-  const { members, currentMember, refresh, apartment } = useApp();
+  const router = useRouter();
+  const { members, currentMember, refresh, setCurrentMember, apartment } = useApp();
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>('members');
-  const [config, setConfig] = useState<Record<string, unknown> | null>(null);
+  const { data: config, mutate: mutateConfig } = useSWR<Record<string, unknown>>(CONFIG_KEY);
   const [tempMembers, setTempMembers] = useState<TempMember[]>([]);
   const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [showAddModal, setShowAddModal] = useState(false);
@@ -27,27 +43,19 @@ export default function SettingsPage() {
   const newMemberPhotoRef = useRef<HTMLInputElement>(null);
   const [unlockMonth, setUnlockMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [unlockYear, setUnlockYear] = useState(String(new Date().getFullYear()));
-  const [fixedDraft, setFixedDraft] = useState<Record<string, number>>({});
   const [aptAddress, setAptAddress] = useState('');
   const [aptFloor, setAptFloor] = useState('');
 
   const isAdmin = !!(currentMember?.isAdmin);
+  const canEditMeals =
+    memberHasPerm(currentMember, 'manage_meal_settings') ||
+    memberHasPerm(currentMember, 'manage_member_meal_plans');
+  const canManageRoles = memberHasPerm(currentMember, 'assign_roles');
   const billManagerId = apartment?.billManagerId;
 
   const loadConfig = useCallback(async () => {
-    const res = await fetch('/api/config');
-    if (res.ok) {
-      const data = await res.json();
-      setConfig(data);
-      // Init fixed cost draft
-      const fc = (data.fixedCosts as { id: string; amount: number }[]) || [];
-      const draft: Record<string, number> = {};
-      fc.forEach((c) => { draft[c.id] = c.amount; });
-      setFixedDraft(draft);
-    }
-  }, []);
-
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+    await mutateConfig();
+  }, [mutateConfig]);
 
   useEffect(() => {
     setTempMembers(members.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl, isAdmin: m.isAdmin, isBillManager: m.isBillManager })));
@@ -62,9 +70,17 @@ export default function SettingsPage() {
 
   const fixedCosts = (config?.fixedCosts as { id: string; name: string; amount: number; inFixedBucket: boolean }[]) || [];
   const optionalCosts = (config?.optionalCosts as { id: string; name: string; amount: number }[]) || [];
+  const optInMatrix = (config?.optInMatrix as OptInMatrix) || {};
   const rentSplits = (config?.rentSplits as { memberId: string; fixedAmount: number | null }[]) || [];
   const fixedBucketTotal = (config?.fixedBucketTotal as number) || 0;
-  const mealConfig = config?.mealConfig as { mealsPerDay: number; mealNames: string[]; weekStartDay: number } | undefined;
+  const mealConfig = config?.mealConfig as {
+    mealsPerDay: number;
+    mealNames: string[];
+    weekStartDay: number;
+    rateOverride?: number | null;
+  } | undefined;
+  const mealSlotOptInMatrix = (config?.mealSlotOptInMatrix as MealSlotOptInMatrix) || {};
+  const rolePermissions = config?.rolePermissions as RolePermissionsConfig | undefined;
 
   // Members tab handlers
   const handlePhotoChange = (memberId: string, file: File) => {
@@ -148,22 +164,6 @@ export default function SettingsPage() {
     await refresh();
   };
 
-  const saveFixedCosts = async () => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
-    const allCosts = [...fixedCosts, ...optionalCosts];
-    for (const c of allCosts) {
-      if (fixedDraft[c.id] !== undefined && fixedDraft[c.id] !== c.amount) {
-        await fetch(`/api/config/fixed-costs/${c.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: fixedDraft[c.id] }),
-        });
-      }
-    }
-    toast('Fixed costs saved');
-    await loadConfig();
-  };
-
   const saveAptDetails = async () => {
     if (!isAdmin) { toast('Admin access required', 'error'); return; }
     const parts = aptAddress.split(',').map((s) => s.trim());
@@ -215,6 +215,18 @@ export default function SettingsPage() {
 
   const exportBackup = () => { window.location.href = '/api/backup/export'; };
 
+  const signOutApartment = async () => {
+    if (!confirm('Sign out of this apartment? You will need to sign in again with your apartment credentials.')) return;
+    const res = await fetch('/api/auth/apartment/logout', { method: 'POST' });
+    if (!res.ok) {
+      toast('Could not sign out', 'error');
+      return;
+    }
+    setCurrentMember(null);
+    toast('Signed out of apartment');
+    router.replace('/');
+  };
+
   const restoreBackup = async (file: File) => {
     if (!confirm('Replace ALL current data with this backup? This cannot be undone.')) return;
     const text = await file.text();
@@ -246,14 +258,14 @@ export default function SettingsPage() {
       )}
 
       <div className="tabs">
-        {(['members', 'costs', 'rent', 'backup', 'danger'] as Tab[]).map((t) => (
+        {(['members', 'costs', 'meals', 'rent', 'activity', 'backup', 'danger'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             className={`tab-btn${tab === t ? ' active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'costs' ? 'Fixed Costs' : t === 'rent' ? 'Rent Split' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'costs' ? 'Cost Managing' : t === 'meals' ? 'Meals' : t === 'rent' ? 'Rent Split' : t === 'activity' ? 'Activity Log' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -322,11 +334,10 @@ export default function SettingsPage() {
                   <div className="member-config__fields">
                     <label className="form-label" htmlFor={`name-${m.id}`}>Member Name</label>
                     <input
-                      className="form-input"
+                      className="form-input member-config__name-input"
                       id={`name-${m.id}`}
                       value={m.name}
                       disabled={!isAdmin}
-                      style={{ fontFamily: 'var(--font-head)', fontWeight: 700 }}
                       onChange={(e) => setTempMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, name: e.target.value } : x))}
                     />
                   </div>
@@ -347,6 +358,14 @@ export default function SettingsPage() {
                     <span className="member-config__manager-hint">Receives payments from other members</span>
                   </div>
                 </div>
+
+                {billManagerId === m.id && (
+                  <MemberPaymentMethodsEditor
+                    memberId={m.id}
+                    memberName={m.name}
+                    isAdmin={isAdmin}
+                  />
+                )}
 
                 {/* Admin toggle */}
                 <div className="member-config__admin">
@@ -399,10 +418,84 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
+
+          <RolePermissionsPanel
+            canEdit={canManageRoles}
+            initialPermissions={rolePermissions}
+            onSaved={async () => {
+              await refresh();
+              await loadConfig();
+            }}
+          />
+
+          <section className="apt-session" aria-label="Apartment session">
+            <div className="apt-session__card">
+              <div className="apt-session__shine" aria-hidden="true" />
+
+              <header className="apt-session__header">
+                <div className="apt-session__status">
+                  <span className="apt-session__status-dot" aria-hidden="true" />
+                  Active apartment session
+                </div>
+                <div className="apt-session__identity">
+                  <div className="apt-session__logo-wrap">
+                    <img
+                      className="apt-session__logo"
+                      src={LOGO_SRC}
+                      alt=""
+                      width={48}
+                      height={48}
+                    />
+                  </div>
+                  <div className="apt-session__identity-text">
+                    <h3 className="apt-session__name">{apartment?.name || 'LocalHost'}</h3>
+                    {apartment?.address && (
+                      <p className="apt-session__address">{apartment.address}</p>
+                    )}
+                  </div>
+                </div>
+              </header>
+
+              <div className="apt-session__stats">
+                {apartment?.registrationId && (
+                  <div className="apt-session__stat">
+                    <span className="apt-session__stat-label">Registration ID</span>
+                    <span className="apt-session__stat-value">{apartment.registrationId}</span>
+                  </div>
+                )}
+                {apartment?.aptFloor && (
+                  <div className="apt-session__stat">
+                    <span className="apt-session__stat-label">Floor / Unit</span>
+                    <span className="apt-session__stat-value">{apartment.aptFloor}</span>
+                  </div>
+                )}
+                <div className="apt-session__stat">
+                  <span className="apt-session__stat-label">Members</span>
+                  <span className="apt-session__stat-value">{members.length}</span>
+                </div>
+              </div>
+
+              <footer className="apt-session__footer">
+                <p className="apt-session__footer-hint">
+                  Switch apartments or leave this device — you&apos;ll return to the apartment login screen.
+                </p>
+                <button className="apt-session__logout" type="button" onClick={signOutApartment}>
+                  <span className="apt-session__logout-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                  </span>
+                  Sign out apartment
+                </button>
+              </footer>
+            </div>
+          </section>
         </div>
       )}
 
-      {/* ── Fixed Costs tab ── */}
+      {/* ── Cost Managing tab ── */}
       {tab === 'costs' && (
         <>
           <div className="config-block">
@@ -431,7 +524,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               {isAdmin && (
-                <div className="actions-row" style={{ marginTop: 16 }}>
+                <div className="actions-row">
                   <button className="btn btn-primary btn-sm" type="button" onClick={saveAptDetails}>
                     Save Details
                   </button>
@@ -440,46 +533,62 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="config-block">
-            <div className="config-block__head">Monthly Fixed Costs</div>
-            <div className="config-block__body">
-              <p className="form-hint">
-                Rent, Gas, Water &amp; Service form one bucket (split via Rent Split tab).
-                Optional costs (Maid, WiFi, etc.) are split equally per head using ceiling rounding.
-              </p>
-              <div className="form-grid">
-                {fixedCosts.map((c) => (
-                  <div key={c.id}>
-                    <label className="form-label">{c.name} (৳)</label>
-                    <input
-                      className="form-input"
-                      type="number"
-                      value={fixedDraft[c.id] ?? c.amount}
-                      disabled={!isAdmin}
-                      onChange={(e) => setFixedDraft((p) => ({ ...p, [c.id]: Number(e.target.value) }))}
-                    />
-                  </div>
-                ))}
-                {optionalCosts.map((c) => (
-                  <div key={c.id}>
-                    <label className="form-label">{c.name} (৳)</label>
-                    <input
-                      className="form-input"
-                      type="number"
-                      value={fixedDraft[c.id] ?? c.amount}
-                      disabled={!isAdmin}
-                      onChange={(e) => setFixedDraft((p) => ({ ...p, [c.id]: Number(e.target.value) }))}
-                    />
-                  </div>
-                ))}
-              </div>
-              {isAdmin && (
-                <div className="actions-row">
-                  <button className="btn btn-primary" type="button" onClick={saveFixedCosts}>
-                    Save Fixed Costs
-                  </button>
-                </div>
-              )}
+          <div className="config-block cost-categories-block">
+            <div className="config-block__head">Monthly cost categories</div>
+            <div className="config-block__body config-block__body--flush">
+              <CostCategoriesPanel
+                fixedCosts={fixedCosts}
+                optionalCosts={optionalCosts}
+                fixedBucketTotal={fixedBucketTotal}
+                isAdmin={isAdmin}
+                onRefresh={loadConfig}
+              />
+            </div>
+          </div>
+
+          <div className="config-block member-opt-in-block">
+            <div className="config-block__head">Member optional assignments</div>
+            <div className="config-block__body config-block__body--flush">
+              <MemberOptionalCostsPanel
+                members={members.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl }))}
+                optionalCosts={optionalCosts}
+                optInMatrix={optInMatrix}
+                isAdmin={isAdmin}
+                onRefresh={loadConfig}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Meals tab ── */}
+      {tab === 'meals' && (
+        <>
+          <div className="config-block meal-settings-block">
+            <div className="config-block__head">Meal types &amp; schedule</div>
+            <div className="config-block__body config-block__body--flush">
+              <MealSettingsPanel
+                mealConfig={mealConfig}
+                canEdit={canEditMeals}
+                onSaved={loadConfig}
+              />
+            </div>
+          </div>
+
+          <div className="config-block member-meal-slots-block">
+            <div className="config-block__head">Member meal plans</div>
+            <div className="config-block__body config-block__body--flush">
+              <MemberMealSlotsPanel
+                members={members.filter((m) => m.isActive !== false).map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  photoUrl: m.photoUrl,
+                }))}
+                mealNames={mealConfig?.mealNames || ['Lunch', 'Dinner']}
+                slotOptInMatrix={mealSlotOptInMatrix}
+                canEdit={canEditMeals}
+                onRefresh={loadConfig}
+              />
             </div>
           </div>
         </>
@@ -493,7 +602,7 @@ export default function SettingsPage() {
             <div className="info-box">
               <strong>How it works:</strong> A fixed amount covers <em>Rent + Gas + Water + Service</em> combined.
               The remainder is divided equally among members without a fixed amount.
-              Optional costs are split equally among <em>all</em> members (ceiling rounded).
+              Optional costs are split among <em>opted-in</em> members only (ceiling rounded).
             </div>
             <div className="form-hint" style={{ marginBottom: 16 }}>
               Fixed bucket: {fmt(fixedBucketTotal)} · Contributions: {fmt(fixedContributions)} · Remaining: {fmt(Math.max(0, fixedBucketTotal - fixedContributions))}
@@ -547,6 +656,16 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity log tab ── */}
+      {tab === 'activity' && (
+        <div className="config-block activity-block">
+          <div className="config-block__head">Activity &amp; audit log</div>
+          <div className="config-block__body">
+            <ActivityLogPanel />
           </div>
         </div>
       )}
@@ -660,50 +779,52 @@ export default function SettingsPage() {
       )}
 
       {/* ── Add Member Modal ── */}
-      {showAddModal && (
-        <div className="modal-backdrop open" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-          <div className="modal">
-            <div className="modal__title">Add New Member</div>
-            <div className="modal__sub">They&apos;ll appear in all bill calculations once saved.</div>
-            <div style={{ marginBottom: 16 }}>
-              <label className="form-label">Full Name</label>
-              <input
-                className="form-input"
-                placeholder="e.g. Shimanto"
-                value={newMemberName}
-                autoFocus
-                onChange={(e) => setNewMemberName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addMember(); }}
-              />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <label className="form-label">Profile Photo (optional)</label>
-              <div className="photo-row">
-                <label className="photo-upload photo-upload--sm" style={{ cursor: 'pointer' }}>
-                  {newMemberPhoto
-                    ? <img src={newMemberPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                    : (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="1.5">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                    )
-                  }
-                  <input
-                    ref={newMemberPhotoRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (ev) => setNewMemberPhoto(ev.target?.result as string);
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                </label>
-                <span className="photo-row__hint">JPG, PNG or WebP</span>
+      <ModalBackdrop open={showAddModal} onClose={() => { setShowAddModal(false); setNewMemberName(''); setNewMemberPhoto(''); }}>
+        <div className="modal modal--form" role="dialog" aria-labelledby="add-member-title">
+            <h2 id="add-member-title" className="modal__title">Add New Member</h2>
+            <p className="modal__sub">They&apos;ll appear in all bill calculations once saved.</p>
+            <div className="modal__form">
+              <div className="modal__field">
+                <label className="form-label" htmlFor="newMemberName">Full Name</label>
+                <input
+                  className="form-input"
+                  id="newMemberName"
+                  placeholder="e.g. Shimanto"
+                  value={newMemberName}
+                  autoFocus
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addMember(); }}
+                />
+              </div>
+              <div className="modal__field">
+                <label className="form-label">Profile Photo <span className="form-label-optional">optional</span></label>
+                <div className="photo-row">
+                  <label className="photo-upload photo-upload--sm" style={{ cursor: 'pointer' }}>
+                    {newMemberPhoto
+                      ? <img src={newMemberPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                      : (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="1.5">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                      )
+                    }
+                    <input
+                      ref={newMemberPhotoRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => setNewMemberPhoto(ev.target?.result as string);
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  <span className="photo-row__hint">JPG, PNG or WebP</span>
+                </div>
               </div>
             </div>
             <div className="modal__actions">
@@ -715,8 +836,7 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalBackdrop>
     </section>
   );
 }

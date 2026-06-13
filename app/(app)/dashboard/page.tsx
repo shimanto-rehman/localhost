@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { fmt, monthLabel, memberColor } from '@/lib/utils';
 import { MONTH_NAMES } from '@/lib/constants';
 import { ChartBox } from '@/components/charts/ChartBox';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
+import { useTheme } from '@/components/providers/ThemeProvider';
+import { DASHBOARD_CURRENT_KEY, dashboardYearKey } from '@/lib/api/cache-keys';
 
 const BILL_LABELS: Record<string, string> = {
   fixedBucket: '🏠 Rent + Gas + Water + Service',
@@ -15,19 +17,12 @@ const BILL_LABELS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { apartment, members } = useApp();
-  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
-  const [currentMonth, setCurrentMonth] = useState<Record<string, unknown> | null>(null);
+  const { theme } = useTheme();
+  const gapNeutral = theme === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)';
   const year = new Date().getFullYear();
 
-  useEffect(() => {
-    Promise.all([
-      fetch(`/api/dashboard/year-summary?year=${year}`).then((r) => r.ok ? r.json() : null),
-      fetch('/api/dashboard/current-month').then((r) => r.ok ? r.json() : null),
-    ]).then(([s, c]) => {
-      setSummary(s);
-      setCurrentMonth(c);
-    });
-  }, [year]);
+  const { data: summary } = useSWR<Record<string, unknown>>(dashboardYearKey(year));
+  const { data: currentMonth } = useSWR<Record<string, unknown>>(DASHBOARD_CURRENT_KEY);
 
   const monthlyTotals = (summary?.monthlyTotals as { month: string; bills: number; meals: number; expenses: number }[]) || [];
   const monthLabels = monthlyTotals.map((m) => m.month.slice(5));
@@ -39,10 +34,24 @@ export default function DashboardPage() {
 
   type CalcResult = {
     id: string; name: string; photoUrl?: string; total: number;
-    breakdown: { fixedBucket: number; electricity: number; meals: number; optional?: Record<string, number> };
+    breakdown: {
+      fixedBucket: number;
+      electricity: number;
+      meals: number;
+      optional?: Record<string, number>;
+      variable?: Record<string, number>;
+    };
     adjustments: { type: string; label: string; amount: number }[];
   };
   const calc = currentMonth?.calculation as { results: CalcResult[]; collectedTotal?: number } | null;
+  const optionalDetails = (currentMonth?.optionalCostDetails as {
+    id: string;
+    name: string;
+    amount: number;
+    optedInMemberIds: string[];
+    optedInCount: number;
+    perHead: number;
+  }[]) || [];
 
   const billManagerId = apartment?.billManagerId;
   const totalCollected = (calc?.collectedTotal as number) || calc?.results?.reduce((s, r) => s + r.total, 0) || 0;
@@ -123,8 +132,8 @@ export default function DashboardPage() {
     datasets: [{
       label: 'Rounding gap',
       data: gapTrend.map((g) => g.gap),
-      backgroundColor: gapTrend.map((g) => g.gap > 0 ? 'rgba(45, 212, 191, 0.75)' : 'rgba(255,255,255,0.06)'),
-      borderColor: gapTrend.map((g) => g.gap > 0 ? '#2dd4bf' : 'rgba(255,255,255,0.06)'),
+      backgroundColor: gapTrend.map((g) => g.gap > 0 ? 'rgba(45, 212, 191, 0.75)' : gapNeutral),
+      borderColor: gapTrend.map((g) => g.gap > 0 ? '#2dd4bf' : gapNeutral),
       borderWidth: 1,
       borderRadius: 6,
     }],
@@ -267,21 +276,44 @@ export default function DashboardPage() {
                 <div className="progress-track">
                   <div className="progress-fill" style={{ width: `${pct}%` }} />
                 </div>
-                {Object.entries(r.breakdown).map(([k, v]) => {
-                  if (k === 'optional' || typeof v !== 'number') return null;
+                {(['fixedBucket', 'electricity', 'meals'] as const).map((k) => {
+                  const v = r.breakdown[k];
+                  if (!v && v !== 0) return null;
+                  if (k === 'meals' && v === 0) return null;
                   return (
                     <div key={k} className="bill-row">
-                      <span className="bill-row__label">{BILL_LABELS[k] || k}</span>
+                      <span className="bill-row__label">{BILL_LABELS[k]}</span>
                       <span className="bill-row__value">{fmt(v)}</span>
                     </div>
                   );
                 })}
-                {r.breakdown.optional && Object.entries(r.breakdown.optional).map(([name, v]) => (
+                {r.breakdown.variable && Object.entries(r.breakdown.variable).map(([name, v]) => (
                   <div key={name} className="bill-row">
                     <span className="bill-row__label">{name}</span>
-                    <span className="bill-row__value">{fmt(v as number)}</span>
+                    <span className="bill-row__value">{fmt(v)}</span>
                   </div>
                 ))}
+                {optionalDetails.map((oc) => {
+                  const v = r.breakdown.optional?.[oc.id] || 0;
+                  const optedIn = oc.optedInMemberIds.includes(r.id);
+                  if (!optedIn && v === 0) return null;
+                  return (
+                    <div
+                      key={oc.id}
+                      className={`bill-row${optedIn ? '' : ' bill-row--skipped'}`}
+                    >
+                      <span className="bill-row__label">
+                        {oc.name}
+                        {optedIn && (
+                          <span className="opt-in-chip">
+                            {oc.optedInCount} members · {fmt(oc.perHead)} each
+                          </span>
+                        )}
+                      </span>
+                      <span className="bill-row__value">{optedIn ? fmt(v) : '—'}</span>
+                    </div>
+                  );
+                })}
                 {r.adjustments?.map((a, ai) => (
                   <div key={ai} className="bill-row bill-row--adj">
                     <span className="bill-row__label">{a.type === 'lend' ? 'Lent' : 'Borrowed'} · {a.label}</span>

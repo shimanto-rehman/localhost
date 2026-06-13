@@ -1,6 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, ReactNode } from 'react';
+import useSWR from 'swr';
+import { BOOTSTRAP_KEY } from '@/lib/api/cache-keys';
+import { prefetchAppShell } from '@/lib/api/prefetch';
 
 export interface MemberInfo {
   id: string;
@@ -11,6 +14,7 @@ export interface MemberInfo {
   isActive?: boolean;
   email?: string | null;
   phone?: string | null;
+  permissions?: string[];
 }
 
 export interface ApartmentInfo {
@@ -24,11 +28,19 @@ export interface ApartmentInfo {
   members?: { id: string; name: string; photoUrl?: string | null }[];
 }
 
+interface BootstrapData {
+  apartment: ApartmentInfo;
+  members: MemberInfo[];
+  member: MemberInfo | null;
+}
+
 interface AppContextValue {
   apartment: ApartmentInfo | null;
   members: MemberInfo[];
   currentMember: MemberInfo | null;
   loading: boolean;
+  isValidating: boolean;
+  error: Error | undefined;
   refresh: () => Promise<void>;
   setCurrentMember: (m: MemberInfo | null) => void;
 }
@@ -38,54 +50,53 @@ const AppContext = createContext<AppContextValue>({
   members: [],
   currentMember: null,
   loading: true,
+  isValidating: false,
+  error: undefined,
   refresh: async () => {},
   setCurrentMember: () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [apartment, setApartment] = useState<ApartmentInfo | null>(null);
-  const [members, setMembers] = useState<MemberInfo[]>([]);
-  const [currentMember, setCurrentMember] = useState<MemberInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, error, isLoading, isValidating, mutate } = useSWR<BootstrapData>(BOOTSTRAP_KEY, {
+    revalidateOnMount: true,
+    dedupingInterval: 30_000,
+  });
+
+  const apartment = data?.apartment ?? null;
+  const members = data?.members ?? [];
+  const currentMember = data?.member ?? null;
+  const loading = isLoading && !data;
 
   const refresh = useCallback(async () => {
-    try {
-      const [aptRes, membersRes, verifyRes] = await Promise.all([
-        fetch('/api/auth/apartment/info'),
-        fetch('/api/members'),
-        fetch('/api/auth/member/verify'),
-      ]);
+    await mutate();
+  }, [mutate]);
 
-      if (aptRes.ok) {
-        const apt = await aptRes.json();
-        setApartment(apt);
-      }
-
-      if (membersRes.ok) {
-        const m = await membersRes.json();
-        setMembers(m);
-      }
-
-      if (verifyRes.ok) {
-        const v = await verifyRes.json();
-        setCurrentMember(v.member);
-      } else {
-        setCurrentMember(null);
-      }
-    } catch {
-      /* offline */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setCurrentMember = useCallback(
+    (m: MemberInfo | null) => {
+      mutate(
+        (prev) => (prev ? { ...prev, member: m } : prev),
+        { revalidate: false },
+      );
+    },
+    [mutate],
+  );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (data?.apartment) prefetchAppShell();
+  }, [data?.apartment]);
 
   return (
     <AppContext.Provider
-      value={{ apartment, members, currentMember, loading, refresh, setCurrentMember }}
+      value={{
+        apartment,
+        members,
+        currentMember,
+        loading,
+        isValidating,
+        error,
+        refresh,
+        setCurrentMember,
+      }}
     >
       {children}
     </AppContext.Provider>

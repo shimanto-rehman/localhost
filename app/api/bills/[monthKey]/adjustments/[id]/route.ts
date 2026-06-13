@@ -4,6 +4,7 @@ import {
   requireAptSession,
   requireMemberSession,
   requireBillManagerOrAdmin,
+  requirePermission,
   jsonOk,
   handleApiError,
 } from '@/lib/api-helpers';
@@ -15,7 +16,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { monthKey, id } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireBillManagerOrAdmin(member);
+    await requirePermission(member, 'bill_adjustments');
 
     const bill = await prisma.monthlyBill.findUnique({
       where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey } },
