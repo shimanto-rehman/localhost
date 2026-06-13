@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useMemo, useState } from 'react';
+import { useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { fmt, monthLabel, memberColor } from '@/lib/utils';
@@ -98,12 +98,9 @@ export default function ProfilePage() {
   }
 
   const months = data?.months ?? [];
-  const monthLabels = useMemo(
-    () => months.map((m) => MONTH_NAMES[Number(m.monthKey.slice(5, 7)) - 1].slice(0, 3)),
-    [months],
-  );
+  const monthLabels = months.map((m) => MONTH_NAMES[Number(m.monthKey.slice(5, 7)) - 1].slice(0, 3));
 
-  const spendTrend = useMemo(() => ({
+  const spendTrend = {
     labels: monthLabels,
     datasets: [
       {
@@ -127,9 +124,9 @@ export default function ProfilePage() {
         borderWidth: 2,
       },
     ],
-  }), [monthLabels, months]);
+  };
 
-  const mealTrend = useMemo(() => ({
+  const mealTrend = {
     labels: monthLabels,
     datasets: [{
       label: 'Confirmed meals',
@@ -139,11 +136,7 @@ export default function ProfilePage() {
       borderWidth: 1,
       borderRadius: 6,
     }],
-  }), [monthLabels, months]);
-
-  const spendChartOptions = useMemo(() => ({
-    scales: { x: { grid: { color: gapNeutral } }, y: { grid: { color: gapNeutral } } },
-  }), [gapNeutral]);
+  };
 
   const currentBd = data?.currentMonth?.billBreakdown;
   const breakdownItems = currentBd
@@ -157,19 +150,16 @@ export default function ProfilePage() {
 
   const maxBreakdown = Math.max(...breakdownItems.map((x) => x.value), 1);
 
-  const categoryEntries = useMemo(
-    () => Object.entries(data?.expenseByCategory ?? {}).sort((a, b) => b[1] - a[1]),
-    [data?.expenseByCategory],
-  );
-
-  const categoryChart = useMemo(() => ({
+  const categoryEntries = Object.entries(data?.expenseByCategory ?? {})
+    .sort((a, b) => b[1] - a[1]);
+  const categoryChart = {
     labels: categoryEntries.map(([c]) => c),
     datasets: [{
       data: categoryEntries.map(([, v]) => v),
       backgroundColor: categoryEntries.map(([c]) => EXPENSE_CATEGORY_COLORS[c] || memberColor(memberIndex) + 'cc'),
       borderWidth: 0,
     }],
-  }), [categoryEntries, memberIndex]);
+  };
 
   const optionalBars = (data?.optionalYearBreakdown ?? []).slice(0, 5);
 
@@ -220,7 +210,7 @@ export default function ProfilePage() {
             key={t.id}
             type="button"
             className={`profile-tabs__btn${tab === t.id ? ' profile-tabs__btn--active' : ''}`}
-            onClick={() => startTransition(() => setTab(t.id))}
+            onClick={() => setTab(t.id)}
           >
             {t.label}
           </button>
@@ -243,7 +233,7 @@ export default function ProfilePage() {
               type="line"
               className="chart-box--tall"
               data={spendTrend}
-              options={spendChartOptions}
+              options={{ scales: { x: { grid: { color: gapNeutral } }, y: { grid: { color: gapNeutral } } } }}
             />
           </div>
         </div>

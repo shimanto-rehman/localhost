@@ -14,12 +14,7 @@ function ChartSkeleton({ className = '' }: { className?: string }) {
  * Chart.js (~80 KB gzip) is loaded on demand so pages render their shell
  * immediately; a skeleton fills the chart area until the bundle arrives.
  */
-const LazyChartBox = dynamic<{
-  type: 'bar' | 'line' | 'doughnut';
-  data: object;
-  options?: object;
-  className?: string;
-}>(
+const LazyChartBox = dynamic(
   () => import('./ChartBoxImpl').then((m) => m.ChartBoxImpl),
   { ssr: false, loading: () => <ChartSkeleton /> },
 );

@@ -30,17 +30,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
     if (!loading && !apartment && !error) router.replace('/login');
   }, [loading, apartment, error, router]);
 
-  // Preload Chart.js during idle time so dashboard/profile charts don't block the first click.
-  useEffect(() => {
-    const run = () => void import('@/components/charts/ChartBoxImpl');
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(run);
-      return () => window.cancelIdleCallback(id);
-    }
-    const t = setTimeout(run, 400);
-    return () => clearTimeout(t);
-  }, []);
-
   if (error && !apartment) {
     return (
       <div className="app-load-error">

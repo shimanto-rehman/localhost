@@ -1,11 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
 import useSWR from 'swr';
 import { fmt, monthLabel, memberColor } from '@/lib/utils';
 import { MONTH_NAMES } from '@/lib/constants';
 import { ChartBox } from '@/components/charts/ChartBox';
-import { CHART_LEGEND_HIDDEN } from '@/components/charts/chart-defaults';
 import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -27,6 +25,7 @@ export default function DashboardPage() {
   const { data: currentMonth } = useSWR<Record<string, unknown>>(DASHBOARD_CURRENT_KEY);
 
   const monthlyTotals = (summary?.monthlyTotals as { month: string; bills: number; meals: number; expenses: number }[]) || [];
+  const monthLabels = monthlyTotals.map((m) => m.month.slice(5));
   const categoryTotals = summary?.categoryTotals as { fixed: number; optional: number; electricity: number; meals: number } | undefined;
   const personTotals = summary?.personTotals as Record<string, number> | undefined;
   const elecTrend = (summary?.electricityTrend as { month: string; amount: number }[]) || [];
@@ -57,12 +56,8 @@ export default function DashboardPage() {
   const billManagerId = apartment?.billManagerId;
   const totalCollected = (calc?.collectedTotal as number) || calc?.results?.reduce((s, r) => s + r.total, 0) || 0;
 
-  const monthLabels = useMemo(
-    () => monthlyTotals.map((m) => m.month.slice(5)),
-    [monthlyTotals],
-  );
-
-  const monthlyChartData = useMemo(() => ({
+  // Chart configs
+  const monthlyChartData = {
     labels: monthLabels,
     datasets: [{
       label: 'Bills + Expenses',
@@ -75,9 +70,9 @@ export default function DashboardPage() {
       pointRadius: 4,
       borderWidth: 2.5,
     }],
-  }), [monthLabels, monthlyTotals]);
+  };
 
-  const personChartData = useMemo(() => ({
+  const personChartData = {
     labels: members.map((m) => m.name),
     datasets: [{
       label: 'Year Total',
@@ -87,9 +82,9 @@ export default function DashboardPage() {
       borderWidth: 1,
       borderRadius: 10,
     }],
-  }), [members, personTotals]);
+  };
 
-  const categoryChartData = useMemo(() => ({
+  const categoryChartData = {
     labels: ['Fixed Costs', 'Optional', 'Electricity', 'Meals'],
     datasets: [{
       data: categoryTotals
@@ -99,9 +94,9 @@ export default function DashboardPage() {
       borderColor: ['#2dd4bf', '#14b8a6', '#38bdf8', '#a78bfa'],
       borderWidth: 1,
     }],
-  }), [categoryTotals]);
+  };
 
-  const elecChartData = useMemo(() => ({
+  const elecChartData = {
     labels: elecTrend.map((e) => e.month.slice(5)),
     datasets: [{
       label: 'Electricity',
@@ -114,11 +109,10 @@ export default function DashboardPage() {
       pointRadius: 4,
       borderWidth: 2.5,
     }],
-  }), [elecTrend]);
+  };
 
-  const expenseLabels = useMemo(() => MONTH_NAMES.map((m) => m.slice(0, 3)), []);
-
-  const compareChartData = useMemo(() => ({
+  const expenseLabels = MONTH_NAMES.map((m) => m.slice(0, 3));
+  const compareChartData = {
     labels: expenseLabels,
     datasets: members.map((m, i) => ({
       label: m.name,
@@ -131,9 +125,9 @@ export default function DashboardPage() {
       tension: 0.35,
       fill: false,
     })),
-  }), [expenseLabels, members, memberExpenseTrend]);
+  };
 
-  const gapChartData = useMemo(() => ({
+  const gapChartData = {
     labels: gapTrend.map((g) => g.month.slice(5)),
     datasets: [{
       label: 'Rounding gap',
@@ -143,19 +137,8 @@ export default function DashboardPage() {
       borderWidth: 1,
       borderRadius: 6,
     }],
-  }), [gapTrend, gapNeutral]);
+  };
 
-  const compareChartOptions = useMemo(() => ({
-    plugins: {
-      legend: {
-        display: true,
-        position: 'top' as const,
-        labels: { usePointStyle: true, padding: 14 },
-      },
-    },
-  }), []);
-
-  // Chart configs
   const stats = [
     { label: 'Fixed Bucket / Month', value: fmt((summary?.fixedBucketTotal as number) || 0), sub: 'Rent + Gas + Water + Service' },
     { label: 'Active Members', value: String(members.length), sub: 'Flatmates registered' },
@@ -187,7 +170,7 @@ export default function DashboardPage() {
               Monthly Total Cost
             </div>
             <div className="card__sub">Full year overview — all bills + expenses combined</div>
-            <ChartBox type="line" data={monthlyChartData} options={CHART_LEGEND_HIDDEN} />
+            <ChartBox type="line" data={monthlyChartData} options={{ plugins: { legend: { display: false } } }} />
           </div>
           <div className="card">
             <div className="card__title">
@@ -199,7 +182,7 @@ export default function DashboardPage() {
               Per-Person Contribution
             </div>
             <div className="card__sub">Cumulative share per member this year</div>
-            <ChartBox type="bar" data={personChartData} options={CHART_LEGEND_HIDDEN} />
+            <ChartBox type="bar" data={personChartData} options={{ plugins: { legend: { display: false } } }} />
           </div>
         </div>
         <div className="grid-2">
@@ -225,7 +208,7 @@ export default function DashboardPage() {
               Electricity Trend
             </div>
             <div className="card__sub">Monthly electricity bills across the year</div>
-            <ChartBox type="line" data={elecChartData} options={CHART_LEGEND_HIDDEN} />
+            <ChartBox type="line" data={elecChartData} options={{ plugins: { legend: { display: false } } }} />
           </div>
         </div>
       </div>
@@ -244,7 +227,15 @@ export default function DashboardPage() {
           <ChartBox
             type="line"
             data={compareChartData}
-            options={compareChartOptions}
+            options={{
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'top' as const,
+                  labels: { usePointStyle: true, padding: 14 },
+                },
+              },
+            }}
           />
         </div>
       </div>
@@ -355,7 +346,7 @@ export default function DashboardPage() {
           type="bar"
           className="chart-box--sm chart-box--gap"
           data={gapChartData}
-          options={CHART_LEGEND_HIDDEN}
+          options={{ plugins: { legend: { display: false } } }}
         />
       </div>
     </section>
