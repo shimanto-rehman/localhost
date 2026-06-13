@@ -48,22 +48,26 @@ async function sendResetEmail(
 
   const from = process.env.SMTP_FROM || `noreply@${SITE_URL.replace(/^https?:\/\//, '')}`;
 
-  await transporter.sendMail({
-    from,
-    to,
-    subject,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color: #0d9488;">${SITE_NAME} Password Reset</h2>
-        <p>Hi ${greeting},</p>
-        <p>Click the button below to reset your password. This link expires in 1 hour.</p>
-        <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#2dd4bf;color:#042f2e;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0;">Reset Password</a>
-        <p style="color:#64748b;font-size:13px;">If you didn't request this, ignore this email.</p>
-      </div>
-    `,
-  });
-
-  return true;
+  try {
+    await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html: `
+        <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color: #0d9488;">${SITE_NAME} Password Reset</h2>
+          <p>Hi ${greeting},</p>
+          <p>Click the button below to reset your password. This link expires in 1 hour.</p>
+          <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#2dd4bf;color:#042f2e;text-decoration:none;border-radius:8px;font-weight:600;margin:16px 0;">Reset Password</a>
+          <p style="color:#64748b;font-size:13px;">If you didn't request this, ignore this email.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (emailErr) {
+    console.error(`Email send failed (${context}):`, emailErr);
+    return false;
+  }
 }
 
 export async function sendPasswordResetEmail(
@@ -124,23 +128,27 @@ export async function sendBugReportEmail(params: {
 
   const from = process.env.SMTP_FROM || `noreply@${SITE_URL.replace(/^https?:\/\//, '')}`;
 
-  await transporter.sendMail({
-    from,
-    to: BUG_REPORT_TO,
-    subject,
-    text,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 560px;">
-        <h2 style="color: #0d9488;">${SITE_NAME} — Bug Report</h2>
-        <p><strong>Apartment:</strong> ${params.apartmentName}</p>
-        <p><strong>Reporter:</strong> ${params.reporterName}</p>
-        ${params.reporterEmail ? `<p><strong>Email:</strong> ${params.reporterEmail}</p>` : ''}
-        ${params.pageUrl ? `<p><strong>Page:</strong> ${params.pageUrl}</p>` : ''}
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-        <p style="white-space: pre-wrap; line-height: 1.6;">${params.description.replace(/</g, '&lt;')}</p>
-      </div>
-    `,
-  });
-
-  return true;
+  try {
+    await transporter.sendMail({
+      from,
+      to: BUG_REPORT_TO,
+      subject,
+      text,
+      html: `
+        <div style="font-family: system-ui, sans-serif; max-width: 560px;">
+          <h2 style="color: #0d9488;">${SITE_NAME} — Bug Report</h2>
+          <p><strong>Apartment:</strong> ${params.apartmentName}</p>
+          <p><strong>Reporter:</strong> ${params.reporterName}</p>
+          ${params.reporterEmail ? `<p><strong>Email:</strong> ${params.reporterEmail}</p>` : ''}
+          ${params.pageUrl ? `<p><strong>Page:</strong> ${params.pageUrl}</p>` : ''}
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+          <p style="white-space: pre-wrap; line-height: 1.6;">${params.description.replace(/</g, '&lt;')}</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (emailErr) {
+    console.error('Bug report email send failed:', emailErr);
+    return false;
+  }
 }
