@@ -5,7 +5,7 @@ import { paymentMethodSchema, zodFieldErrors } from '@/lib/validation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-    requireAdmin(memberSession);
+    await requirePermission(memberSession, 'manage_payment_methods');
 
     const body = await req.json();
     const parsed = paymentMethodSchema.safeParse(body);

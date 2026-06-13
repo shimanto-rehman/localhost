@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
   requirePermission,
   jsonOk,
   jsonError,

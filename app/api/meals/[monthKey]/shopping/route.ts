@@ -4,6 +4,8 @@ import { mealShoppingSchema, zodFieldErrors } from '@/lib/validation';
 import {
   requireAptSession,
   requireMemberSession,
+  requirePermission,
+  memberCan,
   jsonOk,
   jsonError,
   handleApiError,
@@ -37,11 +39,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!parsed.success) return jsonError('Validation failed', 400, zodFieldErrors(parsed.error));
 
     const targetMemberId = parsed.data.memberId;
-    if (
-      targetMemberId !== memberSession.memberId &&
-      !memberSession.isAdmin &&
-      !memberSession.isBillManager
-    ) {
+    if (targetMemberId === memberSession.memberId) {
+      await requirePermission(memberSession, 'add_meal_shopping');
+    } else if (!(await memberCan(memberSession, 'manage_meal_checklist'))) {
       return jsonError('Cannot add shopping for another member', 403);
     }
 

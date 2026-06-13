@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   handleApiError,
 } from '@/lib/api-helpers';
@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'manage_costs');
 
     const body = await req.json();
     await prisma.optionalCost.updateMany({
@@ -34,7 +34,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'manage_costs');
 
     await prisma.optionalCost.updateMany({
       where: { id, apartmentId: apt.apartmentId },

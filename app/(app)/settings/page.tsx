@@ -49,12 +49,45 @@ export default function SettingsPage() {
   const [apartmentSignOutOpen, setApartmentSignOutOpen] = useState(false);
   const [apartmentSignOutLoading, setApartmentSignOutLoading] = useState(false);
 
-  const isAdmin = !!(currentMember?.isAdmin);
+  const canManageMembers = memberHasPerm(currentMember, 'manage_members');
+  const canResetPasswords = memberHasPerm(currentMember, 'reset_passwords');
+  const canManageCosts = memberHasPerm(currentMember, 'manage_costs');
+  const canManageOptionalAssignments = memberHasPerm(currentMember, 'manage_optional_assignments');
+  const canManageRent = memberHasPerm(currentMember, 'manage_rent_split');
+  const canManageApartment = memberHasPerm(currentMember, 'manage_apartment');
+  const canManagePaymentMethods = memberHasPerm(currentMember, 'manage_payment_methods');
+  const canBackup = memberHasPerm(currentMember, 'backup_data');
+  const canDanger = memberHasPerm(currentMember, 'danger_zone');
   const canEditMeals =
     memberHasPerm(currentMember, 'manage_meal_settings') ||
     memberHasPerm(currentMember, 'manage_member_meal_plans');
   const canManageRoles = memberHasPerm(currentMember, 'assign_roles');
+  const canEditConfig =
+    canManageMembers ||
+    canManageRoles ||
+    canResetPasswords ||
+    canManageCosts ||
+    canManageOptionalAssignments ||
+    canManageRent ||
+    canManageApartment ||
+    canManagePaymentMethods;
   const billManagerId = apartment?.billManagerId;
+
+  const settingsTabs: Tab[] = (() => {
+    const tabs: Tab[] = ['members', 'activity'];
+    if (canManageCosts || canManageApartment || canManageOptionalAssignments) tabs.push('costs');
+    if (canEditMeals) tabs.push('meals');
+    if (canManageRent) tabs.push('rent');
+    if (canBackup) tabs.push('backup');
+    if (canDanger) tabs.push('danger');
+    return tabs;
+  })();
+
+  useEffect(() => {
+    if (!settingsTabs.includes(tab)) {
+      setTab(settingsTabs[0] ?? 'members');
+    }
+  }, [settingsTabs, tab]);
 
   const loadConfig = useCallback(async () => {
     await mutateConfig();
@@ -112,7 +145,7 @@ export default function SettingsPage() {
   };
 
   const saveMembers = async () => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canManageMembers) { toast('You do not have permission to manage members', 'error'); return; }
     let savedCount = 0;
     for (const m of tempMembers) {
       const original = memberList.find((o) => o.id === m.id);
@@ -133,7 +166,7 @@ export default function SettingsPage() {
   };
 
   const removeMember = async (id: string) => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canManageMembers) { toast('You do not have permission to manage members', 'error'); return; }
     if (!confirm('Remove this member? They will be marked inactive.')) return;
     const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
     if (!res.ok) { toast('Could not remove member', 'error'); return; }
@@ -142,7 +175,7 @@ export default function SettingsPage() {
   };
 
   const setRole = async (type: 'admin' | 'billManager', memberId: string) => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canManageRoles) { toast('You do not have permission to assign roles', 'error'); return; }
     const body = type === 'admin' ? { adminMemberId: memberId } : { billManagerId: memberId };
     const res = await fetch('/api/config/roles', {
       method: 'PATCH',
@@ -155,7 +188,7 @@ export default function SettingsPage() {
   };
 
   const resetPassword = async (memberId: string) => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canResetPasswords) { toast('You do not have permission to reset passwords', 'error'); return; }
     const pwd = passwords[memberId];
     if (!pwd || pwd.length < 4) { toast('Enter a password with at least 4 characters', 'error'); return; }
     const res = await fetch(`/api/members/${memberId}/password`, {
@@ -169,7 +202,7 @@ export default function SettingsPage() {
   };
 
   const addMember = async () => {
-    if (!isAdmin) return;
+    if (!canManageMembers) return;
     if (!newMemberName.trim()) { toast('Enter a name', 'error'); return; }
     const res = await fetch('/api/members', {
       method: 'POST',
@@ -185,7 +218,7 @@ export default function SettingsPage() {
   };
 
   const saveAptDetails = async () => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canManageApartment) { toast('You do not have permission to edit apartment details', 'error'); return; }
     const parts = aptAddress.split(',').map((s) => s.trim());
     const res = await fetch('/api/config/apartment', {
       method: 'PATCH',
@@ -218,7 +251,7 @@ export default function SettingsPage() {
   }, [rentSplits]);
 
   const saveRentSplits = async () => {
-    if (!isAdmin) { toast('Admin access required', 'error'); return; }
+    if (!canManageRent) { toast('You do not have permission to edit rent split', 'error'); return; }
     const splits = memberList.map((m) => ({
       memberId: m.id,
       fixedAmount: rentToggles[m.id] ? (parseFloat(rentValues[m.id]) || null) : null,
@@ -273,17 +306,17 @@ export default function SettingsPage() {
   return (
     <section className="page active">
       {/* Readonly banner */}
-      {!isAdmin && (
+      {!canEditConfig && !canEditMeals && !canBackup && !canDanger && (
         <div className="readonly-banner">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          <span>View only — sign in as <strong>Admin</strong> to edit configuration.</span>
+          <span>View only — your role cannot edit these settings.</span>
         </div>
       )}
 
       <div className="tabs">
-        {(['members', 'costs', 'meals', 'rent', 'activity', 'backup', 'danger'] as Tab[]).map((t) => (
+        {settingsTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -303,7 +336,7 @@ export default function SettingsPage() {
               <div className="panel-head__title">Apartment Members</div>
               <div className="form-hint panel-head__hint">Add photos and names — shown across dashboard &amp; bills</div>
             </div>
-            {isAdmin && (
+            {canManageMembers && (
               <button className="btn btn-primary btn-sm" type="button" onClick={() => setShowAddModal(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -316,7 +349,7 @@ export default function SettingsPage() {
           <div className="members-grid">
             {tempMembers.map((m, i) => (
               <div key={m.id} className="member-config">
-                {isAdmin && (
+                {canManageMembers && (
                   <button
                     className="member-config__remove"
                     type="button"
@@ -329,7 +362,7 @@ export default function SettingsPage() {
                   </button>
                 )}
                 <div className="member-config__body">
-                  <label className="photo-upload" style={{ cursor: isAdmin ? 'pointer' : 'default' }}>
+                  <label className="photo-upload" style={{ cursor: canManageMembers ? 'pointer' : 'default' }}>
                     {m.photoUrl
                       ? <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
                       : (
@@ -338,12 +371,12 @@ export default function SettingsPage() {
                         </div>
                       )
                     }
-                    {isAdmin && <div className="photo-upload__badge">
+                    {canManageMembers && <div className="photo-upload__badge">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <path d="M12 5v14M5 12h14" />
                       </svg>
                     </div>}
-                    {isAdmin && (
+                    {canManageMembers && (
                       <input
                         type="file"
                         accept="image/*"
@@ -362,7 +395,7 @@ export default function SettingsPage() {
                       className="form-input member-config__name-input"
                       id={`name-${m.id}`}
                       value={m.name}
-                      disabled={!isAdmin}
+                      disabled={!canManageMembers}
                       onChange={(e) => setTempMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, name: e.target.value } : x))}
                     />
                   </div>
@@ -375,8 +408,8 @@ export default function SettingsPage() {
                     className={`toggle-switch mgr-toggle${billManagerId === m.id ? ' on' : ''}`}
                     role="switch"
                     aria-checked={billManagerId === m.id}
-                    disabled={!isAdmin}
-                    onClick={() => isAdmin && setRole('billManager', m.id)}
+                    disabled={!canManageRoles}
+                    onClick={() => canManageRoles && setRole('billManager', m.id)}
                   />
                   <div className="member-config__manager-text">
                     <span className="member-config__manager-title">Bill Manager</span>
@@ -388,7 +421,7 @@ export default function SettingsPage() {
                   <MemberPaymentMethodsEditor
                     memberId={m.id}
                     memberName={m.name}
-                    isAdmin={isAdmin}
+                    isAdmin={canManagePaymentMethods}
                   />
                 )}
 
@@ -399,8 +432,8 @@ export default function SettingsPage() {
                     className={`toggle-switch admin-toggle${m.isAdmin ? ' on' : ''}`}
                     role="switch"
                     aria-checked={!!m.isAdmin}
-                    disabled={!isAdmin}
-                    onClick={() => isAdmin && setRole('admin', m.id)}
+                    disabled={!canManageRoles}
+                    onClick={() => canManageRoles && setRole('admin', m.id)}
                   />
                   <div className="member-config__admin-text">
                     <span className="member-config__admin-title">Admin</span>
@@ -409,7 +442,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Inline password reset */}
-                {isAdmin && (
+                {canResetPasswords && (
                   <div className="member-password-row">
                     <label className="form-label" htmlFor={`pwd-${m.id}`}>Password</label>
                     <div className="member-password-actions">
@@ -436,7 +469,7 @@ export default function SettingsPage() {
             ))}
           </div>
 
-          {isAdmin && (
+          {canManageMembers && (
             <div className="actions-row">
               <button className="btn btn-primary" type="button" onClick={saveMembers}>
                 Save Members
@@ -536,7 +569,7 @@ export default function SettingsPage() {
                   <input
                     className="form-input"
                     value={aptAddress}
-                    disabled={!isAdmin}
+                    disabled={!canManageApartment}
                     placeholder="H-38, R-13, Nikunja-2"
                     onChange={(e) => setAptAddress(e.target.value)}
                   />
@@ -546,13 +579,13 @@ export default function SettingsPage() {
                   <input
                     className="form-input"
                     value={aptFloor}
-                    disabled={!isAdmin}
+                    disabled={!canManageApartment}
                     placeholder="7TH FLOOR"
                     onChange={(e) => setAptFloor(e.target.value)}
                   />
                 </div>
               </div>
-              {isAdmin && (
+              {canManageApartment && (
                 <div className="actions-row">
                   <button className="btn btn-primary btn-sm" type="button" onClick={saveAptDetails}>
                     Save Details
@@ -569,7 +602,7 @@ export default function SettingsPage() {
                 fixedCosts={fixedCosts}
                 optionalCosts={optionalCosts}
                 fixedBucketTotal={fixedBucketTotal}
-                isAdmin={isAdmin}
+                isAdmin={canManageCosts}
                 onRefresh={loadConfig}
               />
             </div>
@@ -582,7 +615,7 @@ export default function SettingsPage() {
                 members={memberList.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl }))}
                 optionalCosts={optionalCosts}
                 optInMatrix={optInMatrix}
-                isAdmin={isAdmin}
+                isAdmin={canManageOptionalAssignments}
                 onRefresh={loadConfig}
               />
             </div>
@@ -654,8 +687,8 @@ export default function SettingsPage() {
                         className={`toggle-switch rent-toggle${isOn ? ' on' : ''}`}
                         role="switch"
                         aria-checked={isOn}
-                        disabled={!isAdmin}
-                        onClick={() => isAdmin && setRentToggles((p) => ({ ...p, [m.id]: !isOn }))}
+                        disabled={!canManageMembers}
+                        onClick={() => canManageRent && setRentToggles((p) => ({ ...p, [m.id]: !isOn }))}
                       />
                       <span className="toggle-label">Fixed bucket amount</span>
                     </div>
@@ -664,7 +697,7 @@ export default function SettingsPage() {
                         className="form-input"
                         type="number"
                         value={rentValues[m.id] || ''}
-                        disabled={!isAdmin}
+                        disabled={!canManageMembers}
                         placeholder="e.g. 6500"
                         style={{ marginTop: 10 }}
                         onChange={(e) => setRentValues((p) => ({ ...p, [m.id]: e.target.value }))}
@@ -678,7 +711,7 @@ export default function SettingsPage() {
                 );
               })}
             </div>
-            {isAdmin && (
+            {canManageRent && (
               <div className="actions-row">
                 <button className="btn btn-primary" type="button" onClick={saveRentSplits}>
                   Save Rent Split
@@ -709,7 +742,7 @@ export default function SettingsPage() {
                 <div className="backup-row__title">Export Backup</div>
                 <div className="backup-row__desc">Download a full snapshot — members, bills, config, and sessions.</div>
               </div>
-              {isAdmin && (
+              {canBackup && (
                 <button className="btn btn-primary btn-sm" type="button" onClick={exportBackup}>Export</button>
               )}
             </div>
@@ -718,7 +751,7 @@ export default function SettingsPage() {
                 <div className="backup-row__title">Restore from File</div>
                 <div className="backup-row__desc">Replace all current data with a backup JSON file. This cannot be undone.</div>
               </div>
-              {isAdmin && (
+              {canBackup && (
                 <div className="backup-restore-actions">
                   <label className="btn btn-danger btn-sm" style={{ cursor: 'pointer' }}>
                     Restore
@@ -737,7 +770,7 @@ export default function SettingsPage() {
       )}
 
       {/* ── Danger Zone tab ── */}
-      {tab === 'danger' && isAdmin && (
+      {tab === 'danger' && canDanger && (
         <div className="config-block danger-block">
           <div className="config-block__head">⚠ Danger Zone</div>
           <div className="config-block__body">

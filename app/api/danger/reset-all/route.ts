@@ -4,7 +4,7 @@ import { seedApartmentDefaults } from '@/lib/apartment-data';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'danger_zone');
 
     const { confirm } = await req.json();
     if (confirm !== 'RESET') {

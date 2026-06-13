@@ -5,7 +5,7 @@ import { paymentMethodSchema, zodFieldErrors } from '@/lib/validation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id, pmId } = await params;
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-    requireAdmin(memberSession);
+    await requirePermission(memberSession, 'manage_payment_methods');
 
     const body = await req.json();
     const parsed = paymentMethodSchema.safeParse(body);
@@ -88,7 +88,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id, pmId } = await params;
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-    requireAdmin(memberSession);
+    await requirePermission(memberSession, 'manage_payment_methods');
 
     const deleted = await prisma.memberPaymentMethod.deleteMany({
       where: { id: pmId, memberId: id, apartmentId: apt.apartmentId },

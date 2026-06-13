@@ -68,6 +68,8 @@ export default function BillsPage() {
   const optionalDetails = calcData?.optionalCostDetails || [];
   const canSubmit = memberHasPerm(currentMember, 'lock_bills');
   const canAdjust = memberHasPerm(currentMember, 'bill_adjustments');
+  const canMarkPayments = memberHasPerm(currentMember, 'lock_bills');
+  const canViewPaymentSummary = memberHasPerm(currentMember, 'view_payment_summary');
   const billManagerId = apartment?.billManagerId;
   const billManager = billManagerId ? members.find((m) => m.id === billManagerId) : undefined;
   const paymentsByMember = new Map((payData?.payments ?? []).map((p) => [p.memberId, p]));
@@ -293,7 +295,7 @@ export default function BillsPage() {
               )}
 
               {/* ── Payment Summary ── */}
-              {billManager && results.length > 0 && (
+              {billManager && results.length > 0 && canViewPaymentSummary && (
                 <>
                   <div className="section-head payment-section-head">
                     <div className="section-head__title">
@@ -367,7 +369,7 @@ export default function BillsPage() {
                               memberId={r.id}
                               total={r.total}
                               payment={paymentsByMember.get(r.id)}
-                              canEdit={canAdjust}
+                              canEdit={canMarkPayments}
                               onUpdated={load}
                             />
                           )}

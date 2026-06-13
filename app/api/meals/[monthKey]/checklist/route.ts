@@ -5,7 +5,6 @@ import { loadMealSlotOptInMatrix } from '@/lib/meal-member-slots';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
   requirePermission,
   jsonOk,
   jsonError,

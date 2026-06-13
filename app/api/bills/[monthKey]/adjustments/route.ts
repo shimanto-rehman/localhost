@@ -6,7 +6,6 @@ import { billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
   requirePermission,
   jsonOk,
   jsonError,

@@ -168,7 +168,7 @@ export function RolePermissionsPanel({
         toast(d.error || 'Could not save role permissions', 'error');
         return;
       }
-      toast('Role permissions saved');
+      toast('Role permissions saved. Members may need to refresh to apply changes.');
       if (onSaved) await onSaved();
     } finally {
       setSaving(false);

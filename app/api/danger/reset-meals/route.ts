@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   handleApiError,
   logAudit,
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'danger_zone');
 
     await prisma.$transaction([
       prisma.mealRecord.deleteMany({ where: { apartmentId: apt.apartmentId } }),

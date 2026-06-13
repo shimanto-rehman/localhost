@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'assign_roles');
 
     const { adminMemberId, billManagerId } = await req.json();
 

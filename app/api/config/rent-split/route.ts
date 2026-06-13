@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   handleApiError,
 } from '@/lib/api-helpers';
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'manage_rent_split');
 
     const { splits } = await req.json() as {
       splits: { memberId: string; fixedAmount: number | null }[];

@@ -4,7 +4,7 @@ import { costItemSchema, zodFieldErrors } from '@/lib/validation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'manage_costs');
 
     const body = await req.json();
     const parsed = costItemSchema.safeParse(body);

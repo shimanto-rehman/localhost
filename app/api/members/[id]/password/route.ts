@@ -4,7 +4,7 @@ import { hashPassword, validateMemberPassword } from '@/lib/password';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-    requireAdmin(memberSession);
+    await requirePermission(memberSession, 'reset_passwords');
 
     const { password } = await req.json();
     const pwdErr = validateMemberPassword(password);

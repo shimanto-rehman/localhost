@@ -6,7 +6,7 @@ import { memberCreateSchema, zodFieldErrors } from '@/lib/validation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-    requireAdmin(memberSession);
+    await requirePermission(memberSession, 'manage_members');
 
     const body = await req.json();
     const parsed = memberCreateSchema.safeParse(body);

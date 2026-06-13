@@ -8,7 +8,6 @@ import { getBillCalculation, billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
   requirePermission,
   jsonOk,
   jsonError,
@@ -133,7 +132,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { monthKey } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    if (!member.isAdmin) return jsonError('Admin access required', 403);
+    await requirePermission(member, 'danger_zone');
 
     await prisma.monthlyBill.updateMany({
       where: { apartmentId: apt.apartmentId, monthKey },

@@ -5,7 +5,7 @@ import { getBillCalculation } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
+  requirePermission,
   jsonOk,
   jsonError,
   handleApiError,
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const apt = await requireAptSession(req);
     const actor = await requireMemberSession(req);
-    requireBillManagerOrAdmin(actor);
+    await requirePermission(actor, 'lock_bills');
 
     const bill = await prisma.monthlyBill.findUnique({
       where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey } },

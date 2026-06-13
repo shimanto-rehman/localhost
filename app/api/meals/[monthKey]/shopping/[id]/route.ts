@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
+  memberCan,
   jsonOk,
   jsonError,
   handleApiError,
@@ -23,8 +24,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const canDelete =
       entry.memberId === memberSession.memberId ||
-      memberSession.isAdmin ||
-      memberSession.isBillManager;
+      (await memberCan(memberSession, 'manage_meal_checklist'));
     if (!canDelete) return jsonError('Not allowed', 403);
 
     await prisma.mealShopping.delete({ where: { id } });

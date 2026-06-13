@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   requireAptSession,
   requireMemberSession,
-  requireAdmin,
+  requirePermission,
   jsonOk,
   handleApiError,
 } from '@/lib/api-helpers';
@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    requireAdmin(member);
+    await requirePermission(member, 'manage_optional_assignments');
 
     const { matrix } = await req.json() as { matrix: Record<string, boolean> };
 

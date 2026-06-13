@@ -5,6 +5,8 @@ import { computeExpenseCarryIn, calcExpenseMonth } from '@/lib/calculations/expe
 import {
   requireAptSession,
   requireMemberSession,
+  requirePermission,
+  memberCan,
   jsonOk,
   jsonError,
   handleApiError,
@@ -71,8 +73,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     const parsed = expenseSchema.safeParse(body);
     if (!parsed.success) return jsonError('Validation failed', 400, zodFieldErrors(parsed.error));
 
+    await requirePermission(memberSession, 'log_own_expenses');
+
     const targetMemberId = parsed.data.memberId || memberSession.memberId;
-    if (targetMemberId !== memberSession.memberId && !memberSession.isAdmin) {
+    if (
+      targetMemberId !== memberSession.memberId &&
+      !(await memberCan(memberSession, 'edit_any_expense'))
+    ) {
       return jsonError('Cannot add expense for another member', 403);
     }
 

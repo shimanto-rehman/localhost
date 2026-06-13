@@ -4,7 +4,6 @@ import { getMealSummary } from '@/lib/meal-summary';
 import {
   requireAptSession,
   requireMemberSession,
-  requireBillManagerOrAdmin,
   requirePermission,
   jsonOk,
   handleApiError,
@@ -50,10 +49,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { monthKey } = await params;
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
-    if (!member.isAdmin) {
-      const { jsonError } = await import('@/lib/api-helpers');
-      return jsonError('Admin access required', 403);
-    }
+    await requirePermission(member, 'danger_zone');
 
     await prisma.mealMonth.updateMany({
       where: { apartmentId: apt.apartmentId, monthKey },
