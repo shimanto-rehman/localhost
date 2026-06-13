@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Ambient } from '@/components/layout/Ambient';
+import { LandingNav } from '@/components/landing/LandingNav';
+import { DeveloperCredit } from '@/components/landing/DeveloperCredit';
 import { SITE_NAME, SITE_URL, LOGO_SRC } from '@/lib/constants';
 
 export const metadata: Metadata = {
@@ -297,25 +299,7 @@ export default function LandingPage() {
       <Ambient />
 
       <div className="lp">
-        {/* ── Navbar ── */}
-        <nav className="lp-nav">
-          <div className="lp-nav__inner lp-container">
-            <Link href="/" className="lp-nav__brand">
-              <Image src={LOGO_SRC} width={32} height={32} alt="LocalHost logo" />
-              <span className="lp-nav__brand-name">LocalHost</span>
-            </Link>
-            <div className="lp-nav__links">
-              <a href="#features">Features</a>
-              <a href="#how-it-works">How it works</a>
-              <a href="#faq">FAQ</a>
-              <Link href="/guides/split-apartment-bills">Guides</Link>
-            </div>
-            <div className="lp-nav__actions">
-              <Link href="/login" className="lp-btn lp-btn--ghost">Sign In</Link>
-              <a href="#how-it-works" className="lp-btn lp-btn--primary">Get Started</a>
-            </div>
-          </div>
-        </nav>
+        <LandingNav />
 
         {/* ── Hero ── */}
         <section className="lp-hero" id="hero">
@@ -567,6 +551,8 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <DeveloperCredit />
 
         {/* ── Footer ── */}
         <footer className="lp-footer">

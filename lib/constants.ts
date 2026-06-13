@@ -44,6 +44,13 @@ export const DEFAULT_OPTIONAL_COSTS = [
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhostbill.vercel.app';
 export const LOGO_SRC = '/assets/images/Logo.webp';
 
+export const DEVELOPER = {
+  name: 'S.M. Obaydur Rahman',
+  role: 'Lead Developer & Product Owner',
+  bio: 'Designed and built LocalHost for fair, transparent bill splitting in shared flats and messes.',
+  photoSrc: '/assets/images/shimanto.jpg',
+};
+
 export const MFS_WALLET_TYPES = [
   'Bkash', 'Rocket', 'Nagad', 'Upay', 'Tap', 'Surecash', 'OkWallet', 'UCash',
 ] as const;
