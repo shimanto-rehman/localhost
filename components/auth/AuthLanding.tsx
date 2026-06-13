@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Ambient } from '@/components/layout/Ambient';
 import { useToast } from '@/components/providers/ToastProvider';
 import { LOGO_SRC } from '@/lib/constants';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 // Memoised so it never re-renders when form state changes
 const StableAmbient = memo(Ambient);
@@ -264,11 +265,18 @@ export function AuthLanding() {
                       <AuthField
                         label="Apartment Password"
                         name="password"
-                        type="password"
                         required
-                        minLength={8}
-                        placeholder="Enter your password"
-                      />
+                        error={errors.password}
+                      >
+                        <PasswordInput
+                          id="password"
+                          name="password"
+                          required
+                          minLength={8}
+                          placeholder="Enter your password"
+                          error={Boolean(errors.password)}
+                        />
+                      </AuthField>
                       <p className="auth-form__forgot">
                         <button
                           type="button"
@@ -291,14 +299,28 @@ export function AuthLanding() {
                         <div className="auth-grid auth-grid--2">
                           <AuthField label="Apartment / Mess Name *" name="apt_name" required error={errors.apt_name} />
                           <AuthField label="Floor / Unit Badge" name="apt_floor" placeholder="7TH FLOOR" />
-                          <AuthField label="Password *" name="apt_password" type="password" required minLength={8} />
+                          <AuthField label="Password *" name="apt_password" required error={errors.apt_password}>
+                            <PasswordInput
+                              id="apt_password"
+                              name="apt_password"
+                              required
+                              minLength={8}
+                              error={Boolean(errors.apt_password)}
+                            />
+                          </AuthField>
                           <AuthField
                             label="Confirm Password *"
                             name="apt_password_confirm"
-                            type="password"
                             required
                             error={errors.apt_password_confirm}
-                          />
+                          >
+                            <PasswordInput
+                              id="apt_password_confirm"
+                              name="apt_password_confirm"
+                              required
+                              error={Boolean(errors.apt_password_confirm)}
+                            />
+                          </AuthField>
                         </div>
                       </section>
 

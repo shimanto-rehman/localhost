@@ -312,7 +312,7 @@ export default function LandingPage() {
             </div>
             <div className="lp-nav__actions">
               <Link href="/login" className="lp-btn lp-btn--ghost">Sign In</Link>
-              <Link href="/login" className="lp-btn lp-btn--primary">Get Started</Link>
+              <a href="#how-it-works" className="lp-btn lp-btn--primary">Get Started</a>
             </div>
           </div>
         </nav>

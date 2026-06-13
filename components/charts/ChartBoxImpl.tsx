@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { CHART_ANIMATION } from './chart-defaults';
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, LineElement,
@@ -23,11 +24,6 @@ ChartJS.register(
 );
 
 type ChartType = 'bar' | 'line' | 'doughnut';
-
-const CHART_ANIMATION = {
-  duration: 800,
-  easing: 'easeOutQuart' as const,
-};
 
 function chartPalette(theme: 'dark' | 'light') {
   const isLight = theme === 'light';
@@ -40,7 +36,7 @@ function chartPalette(theme: 'dark' | 'light') {
   };
 }
 
-export function ChartBoxImpl({
+function ChartBoxImplInner({
   type,
   data,
   options,
@@ -65,8 +61,11 @@ export function ChartBoxImpl({
       animation: CHART_ANIMATION,
       plugins: {
         legend: {
-          labels: { color: palette.tick },
+          labels: { color: palette.tick, boxWidth: 12, padding: 10 },
           position: legendPosition as 'bottom' | 'right',
+          // Legend clicks redraw the whole chart — disable to keep interactions cheap.
+          onClick: () => undefined,
+          onHover: () => undefined,
         },
         tooltip: {
           backgroundColor: palette.tooltipBg,
@@ -81,8 +80,8 @@ export function ChartBoxImpl({
       scales:
         type !== 'doughnut'
           ? {
-              x: { grid: { color: palette.grid }, ticks: { color: palette.tick } },
-              y: { grid: { color: palette.grid }, ticks: { color: palette.tick } },
+              x: { grid: { color: palette.grid }, ticks: { color: palette.tick, maxTicksLimit: 12 } },
+              y: { grid: { color: palette.grid }, ticks: { color: palette.tick, maxTicksLimit: 8 } },
             }
           : undefined,
       ...options,
@@ -92,28 +91,29 @@ export function ChartBoxImpl({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
+    let frame = 0;
     const ro = new ResizeObserver(() => {
-      const canvas = el.querySelector('canvas');
-      if (canvas) ChartJS.getChart(canvas)?.resize();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const canvas = el.querySelector('canvas');
+        if (canvas) ChartJS.getChart(canvas)?.resize();
+      });
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   }, []);
 
-  // Remount on theme change so charts replay entrance animation (matches backup renderCharts).
-  const chartKey = `${type}-${theme}`;
+  const ChartComponent = type === 'bar' ? Bar : type === 'line' ? Line : Doughnut;
 
   return (
     <div className={`chart-box ${className}`} ref={containerRef}>
-      {type === 'bar' && (
-        <Bar key={chartKey} data={data as never} options={chartOptions as never} />
-      )}
-      {type === 'line' && (
-        <Line key={chartKey} data={data as never} options={chartOptions as never} />
-      )}
-      {type === 'doughnut' && (
-        <Doughnut key={chartKey} data={data as never} options={chartOptions as never} />
-      )}
+      <ChartComponent data={data as never} options={chartOptions as never} redraw={false} />
     </div>
   );
 }
+
+export const ChartBoxImpl = memo(ChartBoxImplInner);

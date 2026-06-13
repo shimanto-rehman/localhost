@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Ambient } from '@/components/layout/Ambient';
 import { useToast } from '@/components/providers/ToastProvider';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function ResetPasswordPage() {
   const { token } = useParams<{ token: string }>();
@@ -46,11 +47,20 @@ export default function ResetPasswordPage() {
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 16 }}>
               <label className="form-label">New Password</label>
-              <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={4} />
+              <PasswordInput
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={4}
+              />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label className="form-label">Confirm Password</label>
-              <input className="form-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              <PasswordInput
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+              />
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%' }}>
               {loading ? 'Updating…' : 'Update Password'}

@@ -337,6 +337,38 @@ a.nav-link {
   line-height: 1.3;
 }
 
+.password-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input__field {
+  padding-right: 44px;
+}
+
+.password-input__toggle {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.password-input__toggle:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 @media (max-width: 768px) {
   .auth-shell {
     grid-template-columns: 1fr;
@@ -1216,11 +1248,11 @@ a.nav-link {
   .lp-section-title { font-size: 26px; }
   .lp-cta-title { font-size: 30px; }
   .lp-nav__links { display: none; }
-  .lp-nav__inner { gap: 0; }
-  .lp-nav__brand { flex: 1; }
-  .lp-nav__actions { gap: 8px; }
-  .lp-nav__actions .lp-btn--ghost { display: none; }
-  .lp-nav__actions .lp-btn--primary { padding: 9px 16px; font-size: 13px; }
+  .lp-nav__inner { gap: 12px; }
+  .lp-nav__brand { flex: 1; min-width: 0; }
+  .lp-nav__brand-name { font-size: 15px; }
+  .lp-nav__actions { gap: 6px; flex-shrink: 0; }
+  .lp-nav__actions .lp-btn { padding: 7px 12px; font-size: 12px; }
   .lp-trust__inner { gap: 18px; }
   .mock-screen { height: 280px; }
   .mock-sb { width: 90px; }
@@ -1230,6 +1262,8 @@ a.nav-link {
 
 @media (max-width: 480px) {
   .lp-hero__h1 { font-size: 32px; }
+  .lp-nav__actions .lp-btn { padding: 6px 10px; font-size: 11px; }
+  .lp-nav__brand-name { font-size: 14px; }
   .lp-hero__actions { flex-direction: column; align-items: stretch; }
   .lp-hero__actions .lp-btn { justify-content: center; }
   .lp-cta-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 320px; margin: 0 auto; }
