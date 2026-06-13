@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { adjustmentSchema, zodFieldErrors } from '@/lib/validation';
+import { billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
@@ -53,6 +55,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         createdBy: member.memberId,
       },
     });
+
+    revalidateTag(billCalcCacheTag(apt.apartmentId, monthKey));
 
     return jsonOk(adjustment, 201);
   } catch (err) {

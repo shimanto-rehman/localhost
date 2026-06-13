@@ -337,6 +337,8 @@ export function catalogByCategory(): { category: string; items: PermissionCatalo
   return Object.entries(groups).map(([category, items]) => ({ category, items }));
 }
 
+import { cache } from 'react';
+
 export async function loadRolePermissionsConfig(apartmentId: string) {
   const { prisma } = await import('./prisma');
   const apt = await prisma.apartment.findUnique({
@@ -346,7 +348,7 @@ export async function loadRolePermissionsConfig(apartmentId: string) {
   return mergeRolePermissions(apt?.rolePermissions);
 }
 
-export async function resolveMemberPermissionKeys(
+export const resolveMemberPermissionKeys = cache(async function resolveMemberPermissionKeys(
   apartmentId: string,
   memberId: string,
 ): Promise<Set<PermissionKey>> {
@@ -361,4 +363,4 @@ export async function resolveMemberPermissionKeys(
     isAdmin: apt.adminMemberId === memberId,
     isBillManager: apt.billManagerId === memberId,
   });
-}
+});

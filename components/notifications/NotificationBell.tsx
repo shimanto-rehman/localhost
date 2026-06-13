@@ -26,15 +26,25 @@ const TYPE_ICONS: Record<string, string> = {
   bug_report: '🐛',
 };
 
+const POLL_MS = 180_000;
+
 export function NotificationBell() {
   const { currentMember } = useApp();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data, mutate } = useSWR<{
     notifications: NotificationItem[];
     unreadCount: number;
-  }>(currentMember ? NOTIFICATIONS_KEY : null, { refreshInterval: 60_000 });
+  }>(currentMember ? NOTIFICATIONS_KEY : null, {
+    refreshInterval: () => (typeof document !== 'undefined' && document.hidden ? 0 : POLL_MS),
+    revalidateOnFocus: true,
+  });
 
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
@@ -56,6 +66,10 @@ export function NotificationBell() {
     });
     mutate();
   }, [mutate]);
+
+  useEffect(() => {
+    if (open) mutate();
+  }, [open, mutate]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +95,7 @@ export function NotificationBell() {
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {unreadCount > 0 && (
+        {mounted && unreadCount > 0 && (
           <span className="notif-bell__badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
         )}
       </button>

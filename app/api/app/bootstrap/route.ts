@@ -3,16 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { formatAddress } from '@/lib/utils';
 import { getMemberSessionFromRequest } from '@/lib/auth';
 import { requireAptSession, jsonOk, handleApiError } from '@/lib/api-helpers';
-import { sanitizeMemberForClient } from '@/lib/apartment-data';
 import { resolveMemberPermissionKeys } from '@/lib/role-permissions';
 
-/** Single round-trip for app shell: apartment, members, and member session. */
+/** Lightweight app shell: apartment + slim member list + session. Full member PII loads via /api/config on Settings. */
 export async function GET(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const memberSession = await getMemberSessionFromRequest(req);
 
-    // select only what the client shell needs — never password hashes or raw PII
     const [apartment, members] = await Promise.all([
       prisma.apartment.findUnique({
         where: { id: apt.apartmentId },
@@ -29,11 +27,6 @@ export async function GET(req: NextRequest) {
           moveInDate: true,
           adminMemberId: true,
           billManagerId: true,
-          members: {
-            where: { isActive: true },
-            take: 5,
-            select: { id: true, name: true, photoUrl: true },
-          },
         },
       }),
       prisma.member.findMany({
@@ -43,12 +36,6 @@ export async function GET(req: NextRequest) {
           id: true,
           name: true,
           photoUrl: true,
-          email: true,
-          phone: true,
-          nid: true,
-          hometown: true,
-          country: true,
-          moveInDate: true,
           isActive: true,
         },
       }),
@@ -56,27 +43,28 @@ export async function GET(req: NextRequest) {
 
     if (!apartment) return jsonOk({ apartment: null, members: [], member: null });
 
-    // Run monthly jobs (1st-day reminders, carry-forward dues) on first bootstrap of the month.
-    try {
-      const { runMonthlyJobsForApartment } = await import('@/lib/monthly-jobs');
-      await runMonthlyJobsForApartment(apt.apartmentId);
-    } catch (jobErr) {
-      console.error('Monthly job error:', jobErr);
-    }
+    const shellMembers = members.map((m) => ({
+      id: m.id,
+      name: m.name,
+      photoUrl: m.photoUrl,
+      isActive: m.isActive,
+      isAdmin: apartment.adminMemberId === m.id,
+      isBillManager: apartment.billManagerId === m.id,
+    }));
 
     let member = null;
     if (memberSession) {
-      const row = await prisma.member.findUnique({
-        where: { id: memberSession.memberId },
-        select: { id: true, name: true, photoUrl: true, isActive: true },
-      });
+      const row = members.find((m) => m.id === memberSession.memberId);
       if (row?.isActive) {
         const permissionKeys = await resolveMemberPermissionKeys(
           apt.apartmentId,
           memberSession.memberId,
         );
         member = {
-          ...row,
+          id: row.id,
+          name: row.name,
+          photoUrl: row.photoUrl,
+          isActive: row.isActive,
           isAdmin: memberSession.isAdmin,
           isBillManager: memberSession.isBillManager,
           permissions: Array.from(permissionKeys),
@@ -99,19 +87,13 @@ export async function GET(req: NextRequest) {
         moveInDate: apartment.moveInDate?.toISOString().slice(0, 10),
         adminMemberId: apartment.adminMemberId,
         billManagerId: apartment.billManagerId,
-        members: apartment.members.map((m) => ({
+        members: shellMembers.filter((m) => m.isActive).slice(0, 5).map((m) => ({
           id: m.id,
           name: m.name,
           photoUrl: m.photoUrl,
         })),
       },
-      members: members.map((m) =>
-        sanitizeMemberForClient({
-          ...m,
-          isAdmin: apartment.adminMemberId === m.id,
-          isBillManager: apartment.billManagerId === m.id,
-        }),
-      ),
+      members: shellMembers,
       member,
     });
   } catch (err) {

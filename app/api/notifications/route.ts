@@ -6,14 +6,11 @@ import {
   jsonOk,
   handleApiError,
 } from '@/lib/api-helpers';
-import { runMonthlyJobsForApartment } from '@/lib/monthly-jobs';
 
 export async function GET(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
     const memberSession = await requireMemberSession(req);
-
-    await runMonthlyJobsForApartment(apt.apartmentId);
 
     const notifications = await prisma.notification.findMany({
       where: { apartmentId: apt.apartmentId, memberId: memberSession.memberId },

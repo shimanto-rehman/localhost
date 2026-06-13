@@ -7,6 +7,16 @@ export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
 }
 
+/** Private HTTP cache for stable read-only API responses (e.g. locked-month bills). */
+export function jsonOkCached<T>(data: T, maxAgeSeconds = 3600) {
+  const response = NextResponse.json(data);
+  response.headers.set(
+    'Cache-Control',
+    `private, max-age=${maxAgeSeconds}, stale-while-revalidate=120`,
+  );
+  return response;
+}
+
 export function jsonError(message: string, status = 400, fields?: Record<string, string>) {
   return NextResponse.json({ error: message, fields }, { status });
 }

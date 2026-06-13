@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { prisma } from './prisma';
 import { decrypt } from './encryption';
 import { DEFAULT_FIXED_COSTS, DEFAULT_OPTIONAL_COSTS } from './constants';
@@ -35,7 +36,7 @@ export async function seedApartmentDefaults(apartmentId: string, memberIds: stri
   await syncMealMemberSlots(apartmentId, DEFAULT_MEAL_NAMES.length);
 }
 
-export async function getApartmentConfig(apartmentId: string) {
+export const getApartmentConfig = cache(async function getApartmentConfig(apartmentId: string) {
   const [apartment, members, fixedCosts, optionalCosts, rentSplits, mealConfig, mealSlotRows] =
     await Promise.all([
     prisma.apartment.findUnique({ where: { id: apartmentId } }),
@@ -109,7 +110,7 @@ export async function getApartmentConfig(apartmentId: string) {
     },
     mealSlotOptInMatrix,
   };
-}
+});
 
 export async function getBillSnapshotData(apartmentId: string) {
   const config = await getApartmentConfig(apartmentId);

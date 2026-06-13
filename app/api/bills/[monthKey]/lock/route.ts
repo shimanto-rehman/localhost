@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { isValidMonthKey } from '@/lib/utils';
 import { getBillSnapshotData } from '@/lib/apartment-data';
 import { getMealSummary } from '@/lib/meal-summary';
-import { getBillCalculation } from '@/lib/bill-calculation';
+import { getBillCalculation, billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
@@ -118,6 +119,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       monthKey,
       electricity,
     });
+
+    revalidateTag(billCalcCacheTag(apt.apartmentId, monthKey));
 
     return jsonOk(bill);
   } catch (err) {

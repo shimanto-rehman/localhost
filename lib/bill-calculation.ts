@@ -1,9 +1,14 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from './prisma';
 import { getApartmentConfig } from './apartment-data';
 import { calculateBill } from './calculations/bills';
 import { ceilPerHead } from './utils';
 
-export async function getBillCalculation(apartmentId: string, monthKey: string) {
+export function billCalcCacheTag(apartmentId: string, monthKey: string) {
+  return `bill-calc-${apartmentId}-${monthKey}`;
+}
+
+async function computeBillCalculation(apartmentId: string, monthKey: string) {
   const [bill, config] = await Promise.all([
     prisma.monthlyBill.findUnique({
       where: { apartmentId_monthKey: { apartmentId, monthKey } },
@@ -76,4 +81,24 @@ export async function getBillCalculation(apartmentId: string, monthKey: string) 
     optionalCostDetails,
     optInMatrix: config.optInMatrix,
   };
+}
+
+export async function getBillCalculation(apartmentId: string, monthKey: string) {
+  const lockedPeek = await prisma.monthlyBill.findUnique({
+    where: { apartmentId_monthKey: { apartmentId, monthKey } },
+    select: { isLocked: true },
+  });
+
+  if (lockedPeek?.isLocked) {
+    return unstable_cache(
+      () => computeBillCalculation(apartmentId, monthKey),
+      ['bill-calculation', apartmentId, monthKey],
+      {
+        revalidate: 86400,
+        tags: [billCalcCacheTag(apartmentId, monthKey)],
+      },
+    )();
+  }
+
+  return computeBillCalculation(apartmentId, monthKey);
 }

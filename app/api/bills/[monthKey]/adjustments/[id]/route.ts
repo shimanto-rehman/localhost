@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
@@ -26,6 +28,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     await prisma.billAdjustment.deleteMany({
       where: { id, billId: bill.id },
     });
+
+    revalidateTag(billCalcCacheTag(apt.apartmentId, monthKey));
 
     return jsonOk({ success: true });
   } catch (err) {

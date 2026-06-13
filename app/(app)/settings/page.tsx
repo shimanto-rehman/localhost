@@ -58,10 +58,6 @@ export default function SettingsPage() {
   }, [mutateConfig]);
 
   useEffect(() => {
-    setTempMembers(members.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl, isAdmin: m.isAdmin, isBillManager: m.isBillManager })));
-  }, [members]);
-
-  useEffect(() => {
     if (apartment) {
       setAptAddress(apartment.address || '');
       setAptFloor(apartment.aptFloor || '');
@@ -82,6 +78,26 @@ export default function SettingsPage() {
   const mealSlotOptInMatrix = (config?.mealSlotOptInMatrix as MealSlotOptInMatrix) || {};
   const rolePermissions = config?.rolePermissions as RolePermissionsConfig | undefined;
 
+  const configMemberRows = (config?.members as {
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    isAdmin?: boolean;
+    isBillManager?: boolean;
+    isActive?: boolean;
+  }[]) || [];
+  const memberList = configMemberRows.length > 0 ? configMemberRows : members;
+
+  useEffect(() => {
+    setTempMembers(memberList.map((m) => ({
+      id: m.id,
+      name: m.name,
+      photoUrl: m.photoUrl,
+      isAdmin: m.isAdmin,
+      isBillManager: m.isBillManager,
+    })));
+  }, [memberList]);
+
   // Members tab handlers
   const handlePhotoChange = (memberId: string, file: File) => {
     const reader = new FileReader();
@@ -96,7 +112,7 @@ export default function SettingsPage() {
     if (!isAdmin) { toast('Admin access required', 'error'); return; }
     let savedCount = 0;
     for (const m of tempMembers) {
-      const original = members.find((o) => o.id === m.id);
+      const original = memberList.find((o) => o.id === m.id);
       const nameChanged = original?.name !== m.name;
       const photoChanged = original?.photoUrl !== m.photoUrl;
       if (nameChanged || photoChanged) {
@@ -110,6 +126,7 @@ export default function SettingsPage() {
     }
     toast(savedCount > 0 ? 'Members saved' : 'No changes to save');
     await refresh();
+    await loadConfig();
   };
 
   const removeMember = async (id: string) => {
@@ -199,7 +216,7 @@ export default function SettingsPage() {
 
   const saveRentSplits = async () => {
     if (!isAdmin) { toast('Admin access required', 'error'); return; }
-    const splits = members.map((m) => ({
+    const splits = memberList.map((m) => ({
       memberId: m.id,
       fixedAmount: rentToggles[m.id] ? (parseFloat(rentValues[m.id]) || null) : null,
     }));
@@ -471,7 +488,7 @@ export default function SettingsPage() {
                 )}
                 <div className="apt-session__stat">
                   <span className="apt-session__stat-label">Members</span>
-                  <span className="apt-session__stat-value">{members.length}</span>
+                  <span className="apt-session__stat-value">{memberList.length}</span>
                 </div>
               </div>
 
@@ -550,7 +567,7 @@ export default function SettingsPage() {
             <div className="config-block__head">Member optional assignments</div>
             <div className="config-block__body config-block__body--flush">
               <MemberOptionalCostsPanel
-                members={members.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl }))}
+                members={memberList.map((m) => ({ id: m.id, name: m.name, photoUrl: m.photoUrl }))}
                 optionalCosts={optionalCosts}
                 optInMatrix={optInMatrix}
                 isAdmin={isAdmin}
@@ -579,7 +596,7 @@ export default function SettingsPage() {
             <div className="config-block__head">Member meal plans</div>
             <div className="config-block__body config-block__body--flush">
               <MemberMealSlotsPanel
-                members={members.filter((m) => m.isActive !== false).map((m) => ({
+                members={memberList.filter((m) => m.isActive !== false).map((m) => ({
                   id: m.id,
                   name: m.name,
                   photoUrl: m.photoUrl,
@@ -608,7 +625,7 @@ export default function SettingsPage() {
               Fixed bucket: {fmt(fixedBucketTotal)} · Contributions: {fmt(fixedContributions)} · Remaining: {fmt(Math.max(0, fixedBucketTotal - fixedContributions))}
             </div>
             <div className="rent-grid">
-              {members.map((m, i) => {
+              {memberList.map((m, i) => {
                 const isOn = !!rentToggles[m.id];
                 return (
                   <div key={m.id} className="rent-card">
