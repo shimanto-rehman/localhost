@@ -12,6 +12,7 @@ import { CostCategoriesPanel } from '@/components/settings/CostCategoriesPanel';
 import { MemberOptionalCostsPanel } from '@/components/settings/MemberOptionalCostsPanel';
 import { MemberPaymentMethodsEditor } from '@/components/settings/MemberPaymentMethodsEditor';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { MemberMealSlotsPanel } from '@/components/settings/MemberMealSlotsPanel';
 import { MealSettingsPanel } from '@/components/settings/MealSettingsPanel';
 import { RolePermissionsPanel } from '@/components/settings/RolePermissionsPanel';
@@ -45,6 +46,8 @@ export default function SettingsPage() {
   const [unlockYear, setUnlockYear] = useState(String(new Date().getFullYear()));
   const [aptAddress, setAptAddress] = useState('');
   const [aptFloor, setAptFloor] = useState('');
+  const [apartmentSignOutOpen, setApartmentSignOutOpen] = useState(false);
+  const [apartmentSignOutLoading, setApartmentSignOutLoading] = useState(false);
 
   const isAdmin = !!(currentMember?.isAdmin);
   const canEditMeals =
@@ -233,15 +236,20 @@ export default function SettingsPage() {
   const exportBackup = () => { window.location.href = '/api/backup/export'; };
 
   const signOutApartment = async () => {
-    if (!confirm('Sign out of this apartment? You will need to sign in again with your apartment credentials.')) return;
-    const res = await fetch('/api/auth/apartment/logout', { method: 'POST' });
-    if (!res.ok) {
-      toast('Could not sign out', 'error');
-      return;
+    setApartmentSignOutLoading(true);
+    try {
+      const res = await fetch('/api/auth/apartment/logout', { method: 'POST' });
+      if (!res.ok) {
+        toast('Could not sign out', 'error');
+        return;
+      }
+      setApartmentSignOutOpen(false);
+      setCurrentMember(null);
+      toast('Signed out of apartment');
+      router.replace('/');
+    } finally {
+      setApartmentSignOutLoading(false);
     }
-    setCurrentMember(null);
-    toast('Signed out of apartment');
-    router.replace('/');
   };
 
   const restoreBackup = async (file: File) => {
@@ -496,7 +504,11 @@ export default function SettingsPage() {
                 <p className="apt-session__footer-hint">
                   Switch apartments or leave this device — you&apos;ll return to the apartment login screen.
                 </p>
-                <button className="apt-session__logout" type="button" onClick={signOutApartment}>
+                <button
+                  className="apt-session__logout"
+                  type="button"
+                  onClick={() => setApartmentSignOutOpen(true)}
+                >
                   <span className="apt-session__logout-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -854,6 +866,18 @@ export default function SettingsPage() {
             </div>
           </div>
       </ModalBackdrop>
+
+      <ConfirmDialog
+        open={apartmentSignOutOpen}
+        onClose={() => setApartmentSignOutOpen(false)}
+        onConfirm={signOutApartment}
+        title="Sign out of apartment?"
+        description="You'll return to the apartment login screen and need your apartment credentials to sign in again."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        variant="danger"
+        loading={apartmentSignOutLoading}
+      />
     </section>
   );
 }

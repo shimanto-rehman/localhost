@@ -1932,6 +1932,51 @@ a.nav-link {
 .bug-modal__input { width: 100%; resize: vertical; min-height: 120px; }
 .bug-modal__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 
+/* ── Confirm dialog ── */
+.confirm-dialog {
+  width: min(400px, calc(100vw - 32px));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 28px 24px 24px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.confirm-dialog__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.confirm-dialog__icon--danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+.confirm-dialog__title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.confirm-dialog__desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0 0 24px;
+}
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 768px) {
   .notif-panel { right: -8px; }
   .pay-controls__actions { width: 100%; }
