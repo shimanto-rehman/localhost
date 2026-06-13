@@ -328,9 +328,6 @@ a.sidebar-user__btn--logged { cursor: pointer; }
   border-color: rgba(45, 212, 191, 0.35);
   color: var(--accent);
 }
-.login-bubble.selected .login-bubble__tooltip::before {
-  border-top-color: rgba(45, 212, 191, 0.35);
-}
 .login-bubble__tooltip::before {
   content: '';
   position: absolute;
@@ -347,7 +344,6 @@ a.sidebar-user__btn--logged { cursor: pointer; }
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: var(--bg-card);
 }
 .login-bubble:not(.selected):hover,
 .login-bubble:not(.selected):focus-visible {
