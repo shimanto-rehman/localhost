@@ -2,6 +2,23 @@
   "buildCommand": "prisma generate && prisma migrate deploy && next build",
   "framework": "nextjs",
   "regions": ["sin1"],
+  "functions": {
+    "app/api/dashboard/year-summary/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/dashboard/current-month/route.ts": {
+      "maxDuration": 20
+    },
+    "app/api/config/route.ts": {
+      "maxDuration": 20
+    },
+    "app/api/members/[id]/route.ts": {
+      "maxDuration": 20
+    },
+    "app/api/backup/restore/route.ts": {
+      "maxDuration": 30
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/monthly-jobs",

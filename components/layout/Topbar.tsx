@@ -2,13 +2,15 @@
 
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { useApp } from '@/components/providers/AppProvider';
+import { useNavbarMembers } from '@/lib/hooks/useNavbarMembers';
 import { initials, memberColor } from '@/lib/utils';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import Image from 'next/image';
 
 export function Topbar({ title, onMenuClick }: { title: string; onMenuClick: () => void }) {
   const { toggleTheme } = useTheme();
-  const { apartment, members } = useApp();
+  const { apartment } = useApp();
+  const navbarMembers = useNavbarMembers();
 
   return (
     <header className="topbar">
@@ -37,8 +39,8 @@ export function Topbar({ title, onMenuClick }: { title: string; onMenuClick: () 
           </svg>
         </button>
         {apartment?.aptFloor && <span className="badge-pill">{apartment.aptFloor}</span>}
-        <div className="avatar-stack">
-          {members.filter((m) => m.isActive !== false).slice(0, 5).map((m, i) => (
+        <div className="avatar-stack" key={navbarMembers.map((m) => m.id).join('-')}>
+          {navbarMembers.map((m, i) => (
             <div
               key={m.id}
               className="avatar-stack__item"

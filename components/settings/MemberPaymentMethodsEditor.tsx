@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MFS_WALLET_TYPES } from '@/lib/constants';
 import { useToast } from '@/components/providers/ToastProvider';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export type PaymentMethod = {
   id: string;
@@ -55,6 +56,8 @@ export function MemberPaymentMethodsEditor({
   const [bankDraft, setBankDraft] = useState<DraftBank>(emptyBank());
   const [mfsDraft, setMfsDraft] = useState<DraftMfs>(emptyMfs());
   const [saving, setSaving] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<PaymentMethod | null>(null);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,15 +164,21 @@ export function MemberPaymentMethodsEditor({
     }
   };
 
-  const remove = async (m: PaymentMethod) => {
-    if (!confirm(`Remove this ${m.type === 'bank' ? 'bank account' : 'wallet'}?`)) return;
-    const res = await fetch(`/api/members/${memberId}/payment-methods/${m.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      toast('Could not remove', 'error');
-      return;
+  const confirmRemovePaymentMethod = async () => {
+    if (!removeTarget) return;
+    setRemoveLoading(true);
+    try {
+      const res = await fetch(`/api/members/${memberId}/payment-methods/${removeTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        toast('Could not remove', 'error');
+        return;
+      }
+      toast('Payment method removed');
+      setRemoveTarget(null);
+      await load();
+    } finally {
+      setRemoveLoading(false);
     }
-    toast('Payment method removed');
-    await load();
   };
 
   const renderBankForm = () => (
@@ -262,7 +271,7 @@ export function MemberPaymentMethodsEditor({
                   {isAdmin && (
                     <div className="pay-method-chip__actions">
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => startEdit(m)}>Edit</button>
-                      <button type="button" className="pay-method-chip__remove" onClick={() => remove(m)} aria-label="Remove">×</button>
+                      <button type="button" className="pay-method-chip__remove" onClick={() => setRemoveTarget(m)} aria-label="Remove">×</button>
                     </div>
                   )}
                 </li>
@@ -285,6 +294,21 @@ export function MemberPaymentMethodsEditor({
           {isAdmin && adding === 'mfs' && renderMfsForm()}
         </>
       )}
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onClose={() => { if (!removeLoading) setRemoveTarget(null); }}
+        onConfirm={confirmRemovePaymentMethod}
+        title="Remove payment method?"
+        description={
+          removeTarget
+            ? `This ${removeTarget.type === 'bank' ? 'bank account' : 'wallet'} (${removeTarget.type === 'bank' ? removeTarget.bankName : removeTarget.walletType} · ${removeTarget.accountNumber}) will be removed from ${memberName}'s receive accounts.`
+            : ''
+        }
+        confirmLabel="Remove"
+        cancelLabel="Keep"
+        variant="danger"
+        loading={removeLoading}
+      />
     </section>
   );
 }

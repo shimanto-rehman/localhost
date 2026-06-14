@@ -449,6 +449,18 @@ Ensure `postinstall` runs `prisma generate` (already in `package.json`). Redeplo
 
 Check apartment name or registration ID and password. After 5 failed attempts, login is rate-limited for 15 minutes.
 
+### Request timeout / slow loading on Vercel
+
+This app uses serverless functions + PostgreSQL. Timeouts are usually caused by **database connection issues**, not your internet:
+
+1. **`DATABASE_URL` must use the pooler URL** (Neon: hostname contains `-pooler`; Supabase: port `6543` transaction pooler)  
+2. **`DIRECT_DATABASE_URL` is for migrations only** — never use it as `DATABASE_URL` on Vercel  
+3. Add `&connection_limit=1` to the pooler URL (already applied automatically in production by the app)  
+4. **Region alignment** — `vercel.json` deploys to `sin1` (Singapore). Create your Neon/Supabase database in **ap-southeast-1** or nearby to avoid cross-region latency  
+5. After changing env vars, **redeploy** so all functions pick up the new connection string  
+
+If timeouts persist, check Vercel → Project → Logs for `P1001`, `P1002`, or `P2024` (database connection / pool timeout).
+
 ### Database connection errors
 
 - Confirm `DATABASE_URL` uses the **pooler** URL on Vercel (Neon: `-pooler` in hostname)  

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { fmt } from '@/lib/utils';
 import { useToast } from '@/components/providers/ToastProvider';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export type CostCategory = {
   id: string;
@@ -144,6 +145,8 @@ export function CostCategoriesPanel({
   const [newAmount, setNewAmount] = useState('');
   const [dragOverZone, setDragOverZone] = useState<ZoneKey | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string; kind: 'fixed' | 'optional' } | null>(null);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   const bucketCosts = fixedCosts.filter((c) => c.inFixedBucket);
   const standaloneFixed = fixedCosts.filter((c) => !c.inFixedBucket);
@@ -243,22 +246,35 @@ export function CostCategoriesPanel({
     }
   };
 
-  const removeFixed = async (id: string, name: string) => {
+  const requestRemoveFixed = (id: string, name: string) => {
     if (!isAdmin) return;
-    if (!confirm(`Remove "${name}" from fixed costs?`)) return;
-    const res = await fetch(`/api/config/fixed-costs/${id}`, { method: 'DELETE' });
-    if (!res.ok) { toast('Could not remove category', 'error'); return; }
-    toast('Category removed');
-    await onRefresh();
+    setRemoveTarget({ id, name, kind: 'fixed' });
   };
 
-  const removeVariable = async (id: string, name: string) => {
+  const requestRemoveVariable = (id: string, name: string) => {
     if (!isAdmin) return;
-    if (!confirm(`Remove "${name}" from variable costs?`)) return;
-    const res = await fetch(`/api/config/optional-costs/${id}`, { method: 'DELETE' });
-    if (!res.ok) { toast('Could not remove category', 'error'); return; }
-    toast('Category removed');
-    await onRefresh();
+    setRemoveTarget({ id, name, kind: 'optional' });
+  };
+
+  const confirmRemoveCategory = async () => {
+    if (!removeTarget || !isAdmin) return;
+    setRemoveLoading(true);
+    try {
+      const url =
+        removeTarget.kind === 'fixed'
+          ? `/api/config/fixed-costs/${removeTarget.id}`
+          : `/api/config/optional-costs/${removeTarget.id}`;
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) {
+        toast('Could not remove category', 'error');
+        return;
+      }
+      toast('Category removed');
+      setRemoveTarget(null);
+      await onRefresh();
+    } finally {
+      setRemoveLoading(false);
+    }
   };
 
   const submitNew = async () => {
@@ -429,7 +445,7 @@ export function CostCategoriesPanel({
         'Bucket',
         'bucket',
         'fixed',
-        removeFixed,
+        requestRemoveFixed,
       )}
 
       {renderZone(
@@ -442,7 +458,7 @@ export function CostCategoriesPanel({
         'Fixed',
         'fixed',
         'fixed',
-        removeFixed,
+        requestRemoveFixed,
       )}
 
       {renderZone(
@@ -455,8 +471,24 @@ export function CostCategoriesPanel({
         'Variable',
         'variable',
         'optional',
-        removeVariable,
+        requestRemoveVariable,
       )}
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onClose={() => { if (!removeLoading) setRemoveTarget(null); }}
+        onConfirm={confirmRemoveCategory}
+        title="Remove cost category?"
+        description={
+          removeTarget
+            ? `"${removeTarget.name}" will be removed from ${removeTarget.kind === 'fixed' ? 'fixed' : 'variable'} costs. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Remove category"
+        cancelLabel="Keep category"
+        variant="danger"
+        loading={removeLoading}
+      />
 
       {isAdmin && (
         <footer className="cost-hub__save">

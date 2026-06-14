@@ -5,9 +5,11 @@ import {
   requireMemberSession,
   requirePermission,
   jsonOk,
+  jsonError,
   handleApiError,
   logAudit,
 } from '@/lib/api-helpers';
+import { clearAptCookie, clearMemberCookie } from '@/lib/auth';
 import { requireDangerZonePassword } from '@/lib/danger-zone';
 
 export async function POST(req: NextRequest) {
@@ -20,13 +22,22 @@ export async function POST(req: NextRequest) {
     const passwordError = await requireDangerZonePassword(apt.apartmentId, password);
     if (passwordError) return passwordError;
 
-    await prisma.$transaction([
-      prisma.billAdjustment.deleteMany({ where: { bill: { apartmentId: apt.apartmentId } } }),
-      prisma.monthlyBill.deleteMany({ where: { apartmentId: apt.apartmentId } }),
-    ]);
+    const apartment = await prisma.apartment.findUnique({
+      where: { id: apt.apartmentId },
+    });
+    if (!apartment) return jsonError('Apartment not found', 404);
 
-    await logAudit(apt.apartmentId, 'RESET_BILLS', member.memberId);
-    return jsonOk({ success: true });
+    await logAudit(apartment.id, 'DELETE_APARTMENT', member.memberId);
+    await prisma.apartment.delete({ where: { id: apartment.id } });
+
+    const response = jsonOk({
+      success: true,
+      redirect: '/login',
+      message: 'Apartment deleted permanently.',
+    });
+    clearAptCookie(response);
+    clearMemberCookie(response);
+    return response;
   } catch (err) {
     return handleApiError(err);
   }

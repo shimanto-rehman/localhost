@@ -17,6 +17,7 @@ import {
 import { createNotificationsForMembers } from '@/lib/notifications';
 import { MONTH_NAMES } from '@/lib/constants';
 import { parseMonthKey } from '@/lib/utils';
+import { requireDangerZonePassword } from '@/lib/danger-zone';
 
 type Params = { params: Promise<{ monthKey: string }> };
 
@@ -133,6 +134,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const apt = await requireAptSession(req);
     const member = await requireMemberSession(req);
     await requirePermission(member, 'danger_zone');
+
+    const { password } = await req.json().catch(() => ({}));
+    const passwordError = await requireDangerZonePassword(apt.apartmentId, password);
+    if (passwordError) return passwordError;
 
     await prisma.monthlyBill.updateMany({
       where: { apartmentId: apt.apartmentId, monthKey },

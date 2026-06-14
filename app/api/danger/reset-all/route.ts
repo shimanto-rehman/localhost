@@ -10,6 +10,7 @@ import {
   handleApiError,
   logAudit,
 } from '@/lib/api-helpers';
+import { requireDangerZonePassword } from '@/lib/danger-zone';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,10 +18,9 @@ export async function POST(req: NextRequest) {
     const member = await requireMemberSession(req);
     await requirePermission(member, 'danger_zone');
 
-    const { confirm } = await req.json();
-    if (confirm !== 'RESET') {
-      return jsonError('Type RESET to confirm', 400);
-    }
+    const { password } = await req.json();
+    const passwordError = await requireDangerZonePassword(apt.apartmentId, password);
+    if (passwordError) return passwordError;
 
     const apartmentId = apt.apartmentId;
     const adminMember = await prisma.member.findFirst({
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         name: adminMember.name,
         email: adminMember.email,
         phone: adminMember.phone,
+        photoUrl: adminMember.photoUrl,
         passwordHash: adminMember.passwordHash,
         isActive: true,
       },

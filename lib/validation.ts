@@ -1,21 +1,39 @@
 import { z } from 'zod';
+import { validateMemberPhotoDataUrl } from './member-photo';
+import {
+  normalizePhone,
+  sanitizeEmail,
+  sanitizeNid,
+  sanitizeText,
+} from './sanitize';
+import { isValidInternationalPhone } from './phone-countries';
+
+const phoneSchema = z
+  .string()
+  .transform((v) => sanitizeText(v, 20))
+  .refine((v) => isValidInternationalPhone(v), 'Enter a valid mobile number');
+
+const optionalNidSchema = z
+  .string()
+  .transform((v) => sanitizeNid(v))
+  .refine((v) => !v || /^(\d{10}|\d{17})$/.test(v), 'NID must be 10 or 17 digits');
 
 export const monthKeySchema = z.string().regex(/^\d{4}-\d{2}$/, 'Invalid month key');
 
 export const apartmentRegisterSchema = z.object({
-  apt_name: z.string().trim().min(2).max(80),
-  apt_password: z.string().min(8).regex(/\d/, 'Must contain a number'),
+  apt_name: z.string().transform((v) => sanitizeText(v, 80)).pipe(z.string().min(2).max(80)),
+  apt_password: z.string().min(8).regex(/\d/, 'Must contain a number').regex(/[a-zA-Z]/, 'Must contain a letter'),
   apt_password_confirm: z.string(),
-  address_road: z.string().trim().min(2).max(100),
-  address_postal: z.string().trim().min(4).max(10),
-  address_city: z.string().trim().min(2).max(60),
-  address_country: z.string().trim().min(2).max(60).default('Bangladesh'),
-  registrant_name: z.string().trim().min(2).max(80),
-  registrant_nid: z.string().regex(/^(\d{10}|\d{17})$/, 'NID must be 10 or 17 digits'),
-  registrant_phone: z.string().regex(/^\+880\d{10}$/, 'Phone must be +880XXXXXXXXXX'),
-  registrant_email: z.string().email(),
+  address_road: z.string().transform((v) => sanitizeText(v, 100)).pipe(z.string().min(2).max(100)),
+  address_postal: z.string().transform((v) => sanitizeText(v, 10)).pipe(z.string().min(4).max(10)),
+  address_city: z.string().transform((v) => sanitizeText(v, 60)).pipe(z.string().min(2).max(60)),
+  address_country: z.string().transform((v) => sanitizeText(v, 60)).pipe(z.string().min(2).max(60)).default('Bangladesh'),
+  registrant_name: z.string().transform((v) => sanitizeText(v, 80)).pipe(z.string().min(2).max(80)),
+  registrant_nid: optionalNidSchema.optional().or(z.literal('')).transform((v) => v || ''),
+  registrant_phone: phoneSchema,
+  registrant_email: z.string().transform((v) => sanitizeEmail(v)).pipe(z.string().email('Enter a valid email address')),
   member_count_hint: z.number().int().min(1).max(20).optional(),
-  apt_floor: z.string().max(30).optional(),
+  apt_floor: z.string().transform((v) => sanitizeText(v, 30)).optional().or(z.literal('')),
   apt_type: z.enum(['Mess', 'Bachelor Flat', 'Family Flat', 'Shared House']).optional(),
   move_in_date: z.string().optional(),
 }).refine((d) => d.apt_password === d.apt_password_confirm, {
@@ -24,13 +42,13 @@ export const apartmentRegisterSchema = z.object({
 });
 
 export const apartmentLoginSchema = z.object({
-  identifier: z.string().trim().min(1),
-  password: z.string().min(1),
+  identifier: z.string().transform((v) => sanitizeText(v, 80)).pipe(z.string().min(1, 'Apartment name or ID is required')),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
 export const apartmentRequestResetSchema = z.object({
-  identifier: z.string().trim().min(1),
-  email: z.string().trim().email(),
+  identifier: z.string().transform((v) => sanitizeText(v, 80)).pipe(z.string().min(1)),
+  email: z.string().transform((v) => sanitizeEmail(v)).pipe(z.string().email('Enter a valid email address')),
 });
 
 export const memberLoginSchema = z.object({
@@ -39,11 +57,25 @@ export const memberLoginSchema = z.object({
 });
 
 export const memberCreateSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  photoUrl: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().regex(/^\+880\d{10}$/).optional().or(z.literal('')),
-  nid: z.string().regex(/^(\d{10}|\d{17})$/).optional().or(z.literal('')),
+  name: z.string().transform((v) => sanitizeText(v, 80)).pipe(z.string().min(2).max(80)),
+  photoUrl: z
+    .union([z.string(), z.literal(''), z.null()])
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => validateMemberPhotoDataUrl(v) === null, {
+      message: 'Photo must be JPG, PNG, or WebP and 200KB or smaller',
+    }),
+  email: z
+    .union([z.string().email(), z.literal('')])
+    .optional()
+    .transform((v) => (v && v !== '' ? sanitizeEmail(v) : undefined)),
+  phone: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v ? sanitizeText(v, 20) : ''))
+    .refine((v) => !v || isValidInternationalPhone(v), 'Enter a valid mobile number'),
+  nid: optionalNidSchema.optional().or(z.literal('')),
   hometown: z.string().trim().min(2).max(80).optional().or(z.literal('')),
   country: z.string().max(60).optional(),
   moveInDate: z.string().optional(),

@@ -1,38 +1,14 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, ReactNode } from 'react';
-import useSWR from 'swr';
-import { BOOTSTRAP_KEY } from '@/lib/api/cache-keys';
+import useSWR, { mutate as globalMutate } from 'swr';
+import { BOOTSTRAP_KEY, CONFIG_KEY } from '@/lib/api/cache-keys';
+import { apiFetch } from '@/lib/api/fetcher';
+import { patchBootstrapMembers, type ApartmentInfo, type BootstrapData, type MemberInfo } from '@/lib/member-bootstrap-cache';
 import { prefetchAppShell } from '@/lib/api/prefetch';
+import { purgeVolatileSwrStorage } from '@/lib/swr-cache-provider';
 
-export interface MemberInfo {
-  id: string;
-  name: string;
-  photoUrl?: string | null;
-  isAdmin?: boolean;
-  isBillManager?: boolean;
-  isActive?: boolean;
-  email?: string | null;
-  phone?: string | null;
-  permissions?: string[];
-}
-
-export interface ApartmentInfo {
-  id: string;
-  registrationId: string;
-  name: string;
-  address: string;
-  aptFloor?: string | null;
-  adminMemberId?: string | null;
-  billManagerId?: string | null;
-  members?: { id: string; name: string; photoUrl?: string | null }[];
-}
-
-interface BootstrapData {
-  apartment: ApartmentInfo;
-  members: MemberInfo[];
-  member: MemberInfo | null;
-}
+export type { MemberInfo, ApartmentInfo } from '@/lib/member-bootstrap-cache';
 
 interface AppContextValue {
   apartment: ApartmentInfo | null;
@@ -42,6 +18,9 @@ interface AppContextValue {
   isValidating: boolean;
   error: Error | undefined;
   refresh: () => Promise<void>;
+  refreshMembers: () => Promise<void>;
+  addMemberToCache: (member: MemberInfo) => void;
+  removeMemberFromCache: (memberId: string) => void;
   setCurrentMember: (m: MemberInfo | null) => void;
 }
 
@@ -53,13 +32,17 @@ const AppContext = createContext<AppContextValue>({
   isValidating: false,
   error: undefined,
   refresh: async () => {},
+  refreshMembers: async () => {},
+  addMemberToCache: () => {},
+  removeMemberFromCache: () => {},
   setCurrentMember: () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { data, error, isLoading, isValidating, mutate } = useSWR<BootstrapData>(BOOTSTRAP_KEY, {
     revalidateOnMount: true,
-    dedupingInterval: 30_000,
+    dedupingInterval: 5_000,
+    keepPreviousData: false,
   });
 
   const apartment = data?.apartment ?? null;
@@ -67,9 +50,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const currentMember = data?.member ?? null;
   const loading = isLoading && !data;
 
+  const applyBootstrap = useCallback(
+    (next: BootstrapData) => {
+      void mutate(next, { revalidate: false, populateCache: true });
+      void globalMutate(BOOTSTRAP_KEY, next, { revalidate: false, populateCache: true });
+    },
+    [mutate],
+  );
+
+  const patchMembersCache = useCallback(
+    (updater: (members: MemberInfo[]) => MemberInfo[]) => {
+      void mutate(
+        (prev) => {
+          if (!prev) return prev;
+          const next = patchBootstrapMembers(prev, updater);
+          void globalMutate(BOOTSTRAP_KEY, next, { revalidate: false, populateCache: true });
+          return next;
+        },
+        { revalidate: false, populateCache: true },
+      );
+    },
+    [mutate],
+  );
+
   const refresh = useCallback(async () => {
-    await mutate();
+    await mutate(undefined, { revalidate: true });
   }, [mutate]);
+
+  const refreshMembers = useCallback(async () => {
+    try {
+      const fresh = await apiFetch<BootstrapData>(BOOTSTRAP_KEY);
+      applyBootstrap(fresh);
+    } catch {
+      await mutate(undefined, { revalidate: true });
+    }
+    void globalMutate(CONFIG_KEY, undefined, { revalidate: true });
+  }, [mutate, applyBootstrap]);
+
+  const addMemberToCache = useCallback(
+    (member: MemberInfo) => {
+      patchMembersCache((members) => {
+        if (members.some((m) => m.id === member.id)) {
+          return members.map((m) => (m.id === member.id ? { ...m, ...member } : m));
+        }
+        return [...members, { ...member, isActive: member.isActive ?? true }];
+      });
+    },
+    [patchMembersCache],
+  );
+
+  const removeMemberFromCache = useCallback(
+    (memberId: string) => {
+      patchMembersCache((members) => members.filter((m) => m.id !== memberId));
+    },
+    [patchMembersCache],
+  );
 
   const setCurrentMember = useCallback(
     (m: MemberInfo | null) => {
@@ -80,6 +115,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [mutate],
   );
+
+  useEffect(() => {
+    purgeVolatileSwrStorage();
+  }, []);
 
   useEffect(() => {
     if (data?.apartment) prefetchAppShell();
@@ -95,6 +134,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isValidating,
         error,
         refresh,
+        refreshMembers,
+        addMemberToCache,
+        removeMemberFromCache,
         setCurrentMember,
       }}
     >

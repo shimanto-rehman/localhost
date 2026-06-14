@@ -99,6 +99,71 @@ export async function sendApartmentPasswordResetEmail(
   );
 }
 
+async function sendBrandedEmail(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  context: string,
+): Promise<boolean> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    console.warn(`Email not configured — ${context}`);
+    return false;
+  }
+
+  const from = process.env.SMTP_FROM || `noreply@${SITE_URL.replace(/^https?:\/\//, '')}`;
+
+  try {
+    await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html: `
+        <div style="font-family: system-ui, sans-serif; max-width: 520px; margin: 0 auto;">
+          <h2 style="color: #0d9488;">${SITE_NAME}</h2>
+          ${htmlBody}
+          <p style="color:#64748b;font-size:13px;margin-top:24px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (emailErr) {
+    console.error(`Email send failed (${context}):`, emailErr);
+    return false;
+  }
+}
+
+export async function sendRegistrationWelcomeEmail(params: {
+  to: string;
+  registrantName: string;
+  apartmentName: string;
+  registrationId: string;
+  apartmentPassword: string;
+  memberDefaultPassword: string;
+}): Promise<boolean> {
+  const loginUrl = `${SITE_URL}/login`;
+  const settingsUrl = `${SITE_URL}/settings`;
+
+  return sendBrandedEmail(
+    params.to,
+    `${SITE_NAME} — Apartment Registered`,
+    `
+      <p>Hi ${params.registrantName},</p>
+      <p>Your apartment <strong>${params.apartmentName}</strong> has been registered successfully on ${SITE_NAME}.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;">Registration ID</td><td style="padding:8px 0;font-weight:600;">${params.registrationId}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Apartment Name</td><td style="padding:8px 0;font-weight:600;">${params.apartmentName}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Apartment Password</td><td style="padding:8px 0;font-weight:600;">${params.apartmentPassword}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Member PIN (default)</td><td style="padding:8px 0;font-weight:600;">${params.memberDefaultPassword}</td></tr>
+      </table>
+      <p>Use your Registration ID or apartment name with the apartment password to sign in.</p>
+      <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#2dd4bf;color:#042f2e;text-decoration:none;border-radius:8px;font-weight:600;margin:8px 0;">Sign In</a>
+      <p style="font-size:13px;color:#64748b;">After signing in, complete your setup at <a href="${settingsUrl}" style="color:#0d9488;">Settings</a>.</p>
+    `,
+    `registration welcome for ${params.apartmentName}`,
+  );
+}
+
 const BUG_REPORT_TO = 'shimato.rehman.bd@gmail.com';
 
 export async function sendBugReportEmail(params: {

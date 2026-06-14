@@ -52,9 +52,10 @@ export function prefetchRoute(href: string) {
   }
 }
 
-/** Warm common session data after bootstrap. */
+/** Warm common session data after bootstrap — stagger heavy calls to avoid DB connection storms. */
 export function prefetchAppShell() {
   preloadKey(DASHBOARD_CURRENT_KEY);
-  preloadKey(dashboardYearKey(new Date().getFullYear()));
-  preloadKey(CONFIG_KEY);
+  const year = new Date().getFullYear();
+  window.setTimeout(() => preloadKey(CONFIG_KEY), 800);
+  window.setTimeout(() => preloadKey(dashboardYearKey(year)), 2000);
 }

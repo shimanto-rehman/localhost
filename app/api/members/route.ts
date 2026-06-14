@@ -12,6 +12,7 @@ import {
   handleApiError,
 } from '@/lib/api-helpers';
 import { sanitizeMemberForClient } from '@/lib/apartment-data';
+import { normalizeMemberPhotoUrl } from '@/lib/member-photo';
 import { seedMealMemberSlotsForMember } from '@/lib/meal-member-slots';
 
 export async function GET(req: NextRequest) {
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       data: {
         apartmentId: apt.apartmentId,
         name: d.name,
-        photoUrl: d.photoUrl,
+        photoUrl: normalizeMemberPhotoUrl(d.photoUrl) ?? null,
         email: d.email || null,
         phone: d.phone || null,
         nid: d.nid ? encrypt(d.nid) : null,
@@ -68,13 +69,15 @@ export async function POST(req: NextRequest) {
     const optionalCosts = await prisma.optionalCost.findMany({
       where: { apartmentId: apt.apartmentId, isActive: true },
     });
-    await prisma.optionalCostMember.createMany({
-      data: optionalCosts.map((oc) => ({
-        optionalCostId: oc.id,
-        memberId: member.id,
-        optedIn: true,
-      })),
-    });
+    if (optionalCosts.length > 0) {
+      await prisma.optionalCostMember.createMany({
+        data: optionalCosts.map((oc) => ({
+          optionalCostId: oc.id,
+          memberId: member.id,
+          optedIn: true,
+        })),
+      });
+    }
 
     await seedMealMemberSlotsForMember(apt.apartmentId, member.id);
 

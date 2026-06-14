@@ -8,39 +8,47 @@ import { buildMealSlotOptInMatrix, syncMealMemberSlots } from './meal-member-slo
 
 const DEFAULT_MEAL_NAMES = ['Breakfast', 'Lunch', 'Evening Snacks', 'Dinner'];
 
-export async function seedApartmentDefaults(apartmentId: string, memberIds: string[]) {
-  await prisma.fixedCost.createMany({
-    data: DEFAULT_FIXED_COSTS.map((c) => ({ ...c, apartmentId })),
-  });
-  const optionalCosts = await Promise.all(
-    DEFAULT_OPTIONAL_COSTS.map((c) =>
-      prisma.optionalCost.create({ data: { ...c, apartmentId } })
-    )
-  );
-  for (const oc of optionalCosts) {
-    await prisma.optionalCostMember.createMany({
-      data: memberIds.map((memberId) => ({
-        optionalCostId: oc.id,
-        memberId,
-        optedIn: true,
-      })),
+export async function seedApartmentDefaults(apartmentId: string, memberIds: string[], options?: { withSampleCosts?: boolean }) {
+  const withSampleCosts = options?.withSampleCosts ?? false;
+
+  if (withSampleCosts && DEFAULT_FIXED_COSTS.length > 0) {
+    await prisma.fixedCost.createMany({
+      data: DEFAULT_FIXED_COSTS.map((c) => ({ ...c, apartmentId })),
     });
   }
+
+  if (withSampleCosts && DEFAULT_OPTIONAL_COSTS.length > 0) {
+    const optionalCosts = await Promise.all(
+      DEFAULT_OPTIONAL_COSTS.map((c) =>
+        prisma.optionalCost.create({ data: { ...c, apartmentId } })
+      )
+    );
+    for (const oc of optionalCosts) {
+      await prisma.optionalCostMember.createMany({
+        data: memberIds.map((memberId) => ({
+          optionalCostId: oc.id,
+          memberId,
+          optedIn: true,
+        })),
+      });
+    }
+  }
+
   await prisma.mealConfig.create({
     data: {
       apartmentId,
-      mealsPerDay: DEFAULT_MEAL_NAMES.length,
-      mealNames: DEFAULT_MEAL_NAMES,
+      mealsPerDay: 1,
+      mealNames: ['Meal'],
     },
   });
-  await syncMealMemberSlots(apartmentId, DEFAULT_MEAL_NAMES.length);
+  await syncMealMemberSlots(apartmentId, 1);
 }
 
 export const getApartmentConfig = cache(async function getApartmentConfig(apartmentId: string) {
   const [apartment, members, fixedCosts, optionalCosts, rentSplits, mealConfig, mealSlotRows] =
     await Promise.all([
     prisma.apartment.findUnique({ where: { id: apartmentId } }),
-    prisma.member.findMany({ where: { apartmentId }, orderBy: { createdAt: 'asc' } }),
+    prisma.member.findMany({ where: { apartmentId, isActive: true }, orderBy: { createdAt: 'asc' } }),
     prisma.fixedCost.findMany({ where: { apartmentId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
     prisma.optionalCost.findMany({
       where: { apartmentId, isActive: true },

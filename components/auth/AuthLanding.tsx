@@ -1,14 +1,21 @@
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Ambient } from '@/components/layout/Ambient';
 import { useToast } from '@/components/providers/ToastProvider';
 import { LOGO_SRC } from '@/lib/constants';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { PhoneInput } from '@/components/ui/PhoneInput';
+import {
+  isValidEmail,
+  isValidNid,
+  isValidPhone,
+  sanitizeText,
+  validateApartmentPassword,
+} from '@/lib/sanitize';
 
-// Memoised so it never re-renders when form state changes
 const StableAmbient = memo(Ambient);
 
 function AuthField({
@@ -16,6 +23,8 @@ function AuthField({
   name,
   type = 'text',
   required,
+  optional,
+  fullWidth,
   placeholder,
   pattern,
   minLength,
@@ -23,11 +32,16 @@ function AuthField({
   max,
   error,
   children,
+  value,
+  onChange,
+  onBlur,
 }: {
   label: string;
   name: string;
   type?: string;
   required?: boolean;
+  optional?: boolean;
+  fullWidth?: boolean;
   placeholder?: string;
   pattern?: string;
   minLength?: number;
@@ -35,10 +49,16 @@ function AuthField({
   max?: number;
   error?: string;
   children?: React.ReactNode;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <div className="auth-field">
-      <label className="form-label" htmlFor={name}>{label}</label>
+    <div className={`auth-field${fullWidth ? ' auth-field--full' : ''}`}>
+      <label className="form-label" htmlFor={name}>
+        {label}
+        {optional ? <span className="form-label-optional"> optional</span> : null}
+      </label>
       {children || (
         <input
           className={`form-input${error ? ' form-input--error' : ''}`}
@@ -51,11 +71,69 @@ function AuthField({
           minLength={minLength}
           min={min}
           max={max}
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
         />
       )}
       {error ? <span className="form-error">{error}</span> : <span className="auth-field__spacer" />}
     </div>
   );
+}
+
+function validateRegisterField(name: string, value: string, allValues: Record<string, string>): string | undefined {
+  switch (name) {
+    case 'apt_name': {
+      const v = sanitizeText(value, 80);
+      if (v.length < 2) return 'Apartment name must be at least 2 characters';
+      return undefined;
+    }
+    case 'apt_password': {
+      return validateApartmentPassword(value) || undefined;
+    }
+    case 'apt_password_confirm': {
+      if (value !== allValues.apt_password) return 'Passwords do not match';
+      return undefined;
+    }
+    case 'address_road':
+    case 'address_city': {
+      if (sanitizeText(value).length < 2) return 'Must be at least 2 characters';
+      return undefined;
+    }
+    case 'address_postal': {
+      const v = sanitizeText(value, 10);
+      if (v.length < 4 || v.length > 10) return 'Postal code must be 4–10 characters';
+      return undefined;
+    }
+    case 'registrant_name': {
+      if (sanitizeText(value, 80).length < 2) return 'Name must be at least 2 characters';
+      return undefined;
+    }
+    case 'registrant_nid': {
+      if (!isValidNid(value)) return 'NID must be 10 or 17 digits';
+      return undefined;
+    }
+    case 'registrant_phone': {
+      if (!value || !isValidPhone(value)) return 'Enter a valid mobile number';
+      return undefined;
+    }
+    case 'registrant_email': {
+      if (!value || !isValidEmail(value)) return 'Enter a valid email address';
+      return undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function validateSignInField(name: string, value: string): string | undefined {
+  if (name === 'identifier' && !sanitizeText(value)) return 'Apartment name or ID is required';
+  if (name === 'password') {
+    if (!value) return 'Password is required';
+    if (value.length < 8) return 'Password must be at least 8 characters';
+  }
+  if (name === 'email' && value && !isValidEmail(value)) return 'Enter a valid email address';
+  return undefined;
 }
 
 export function AuthLanding() {
@@ -66,20 +144,86 @@ export function AuthLanding() {
   const [devResetUrl, setDevResetUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [registerValues, setRegisterValues] = useState<Record<string, string>>({});
+  const [signinValues, setSigninValues] = useState<Record<string, string>>({});
+  const [phoneValue, setPhoneValue] = useState('');
+
+  const setFieldError = useCallback((field: string, message?: string) => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
+  }, []);
+
+  const handleRegisterBlur = (name: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setRegisterValues((prev) => ({ ...prev, [name]: value }));
+    const err = validateRegisterField(name, value, { ...registerValues, [name]: value });
+    setFieldError(name, err);
+  };
+
+  const handleRegisterChange = (name: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setRegisterValues((prev) => {
+      const next = { ...prev, [name]: value };
+      if (errors[name]) {
+        const err = validateRegisterField(name, value, next);
+        setFieldError(name, err);
+      }
+      if (name === 'apt_password' && (errors.apt_password_confirm || registerValues.apt_password_confirm)) {
+        const confirmErr = validateRegisterField('apt_password_confirm', next.apt_password_confirm || '', next);
+        setFieldError('apt_password_confirm', confirmErr);
+      }
+      return next;
+    });
+  };
+
+  const handlePhoneChange = (fullPhone: string, isValid: boolean) => {
+    setPhoneValue(fullPhone);
+    setRegisterValues((prev) => ({ ...prev, registrant_phone: fullPhone }));
+    if (errors.registrant_phone || fullPhone) {
+      setFieldError('registrant_phone', isValid ? undefined : 'Enter a valid mobile number');
+    }
+  };
+
+  const validateAllRegister = (values: Record<string, string>): Record<string, string> => {
+    const fields = [
+      'apt_name', 'apt_password', 'apt_password_confirm',
+      'address_road', 'address_postal', 'address_city',
+      'registrant_name', 'registrant_nid', 'registrant_phone', 'registrant_email',
+    ];
+    const next: Record<string, string> = {};
+    fields.forEach((f) => {
+      const err = validateRegisterField(f, values[f] || '', values);
+      if (err) next[f] = err;
+    });
+    return next;
+  };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setErrors({});
     const fd = new FormData(e.currentTarget);
+    const identifier = String(fd.get('identifier') || '');
+    const password = String(fd.get('password') || '');
+    const fieldErrors: Record<string, string> = {};
+    const idErr = validateSignInField('identifier', identifier);
+    const pwErr = validateSignInField('password', password);
+    if (idErr) fieldErrors.identifier = idErr;
+    if (pwErr) fieldErrors.password = pwErr;
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      setLoading(false);
+      return;
+    }
+    setErrors({});
     try {
       const res = await fetch('/api/auth/apartment/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: fd.get('identifier'),
-          password: fd.get('password'),
-        }),
+        body: JSON.stringify({ identifier, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -100,14 +244,23 @@ export function AuthLanding() {
     setErrors({});
     setDevResetUrl(null);
     const fd = new FormData(e.currentTarget);
+    const identifier = String(fd.get('identifier') || '');
+    const email = String(fd.get('email') || '');
+    const fieldErrors: Record<string, string> = {};
+    const idErr = validateSignInField('identifier', identifier);
+    const emailErr = validateSignInField('email', email);
+    if (idErr) fieldErrors.identifier = idErr;
+    if (emailErr) fieldErrors.email = emailErr;
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch('/api/auth/apartment/request-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: fd.get('identifier'),
-          email: fd.get('email'),
-        }),
+        body: JSON.stringify({ identifier, email }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -131,10 +284,19 @@ export function AuthLanding() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setErrors({});
     const fd = new FormData(e.currentTarget);
     const payload: Record<string, string> = {};
     fd.forEach((v, k) => { payload[k] = String(v); });
+    payload.registrant_phone = phoneValue || payload.registrant_phone;
+
+    const clientErrors = validateAllRegister(payload);
+    if (Object.keys(clientErrors).length > 0) {
+      setErrors(clientErrors);
+      toast('Please fix the highlighted fields', 'error');
+      setLoading(false);
+      return;
+    }
+    setErrors({});
 
     try {
       const res = await fetch('/api/auth/apartment/register', {
@@ -151,7 +313,7 @@ export function AuthLanding() {
         toast(data.error || 'Registration failed', 'error');
         return;
       }
-      toast(`Registered! ID: ${data.registrationId}`);
+      toast(data.message || `Registered! ID: ${data.registrationId}`);
       router.replace(data.redirect || '/settings');
     } catch {
       toast('Could not connect to server', 'error');
@@ -165,7 +327,6 @@ export function AuthLanding() {
       <StableAmbient />
       <div className="auth-page">
             <div className={`auth-shell${tab === 'register' ? ' auth-shell--wide' : ''}`}>
-              {/* Brand panel — always visible, balances the layout */}
               <aside className="auth-shell__brand">
                 <div className="auth-shell__brand-inner">
                   <div className="auth-shell__logo-wrap">
@@ -188,7 +349,6 @@ export function AuthLanding() {
                 </div>
               </aside>
 
-              {/* Form panel */}
               <div className="auth-shell__form">
                 <div className="auth-tabs" role="tablist" aria-label="Authentication">
                   <button
@@ -224,6 +384,8 @@ export function AuthLanding() {
                           name="identifier"
                           required
                           placeholder="e.g. APT-2026-XXXXX"
+                          error={errors.identifier}
+                          onBlur={(e) => setFieldError('identifier', validateSignInField('identifier', e.target.value))}
                         />
                         <AuthField
                           label="Registrant Email"
@@ -231,6 +393,13 @@ export function AuthLanding() {
                           type="email"
                           required
                           placeholder="Email used at registration"
+                          error={errors.email}
+                          onBlur={(e) => setFieldError('email', validateSignInField('email', e.target.value))}
+                          onChange={(e) => {
+                            if (errors.email) {
+                              setFieldError('email', validateSignInField('email', e.target.value));
+                            }
+                          }}
                         />
                         <button className="btn btn-primary auth-form__submit" type="submit" disabled={loading}>
                           {loading ? 'Sending…' : 'Send Reset Link'}
@@ -261,6 +430,13 @@ export function AuthLanding() {
                         name="identifier"
                         required
                         placeholder="e.g. APT-2026-XXXXX"
+                        error={errors.identifier}
+                        value={signinValues.identifier}
+                        onChange={(e) => {
+                          setSigninValues((p) => ({ ...p, identifier: e.target.value }));
+                          if (errors.identifier) setFieldError('identifier', validateSignInField('identifier', e.target.value));
+                        }}
+                        onBlur={(e) => setFieldError('identifier', validateSignInField('identifier', e.target.value))}
                       />
                       <AuthField
                         label="Apartment Password"
@@ -275,6 +451,10 @@ export function AuthLanding() {
                           minLength={8}
                           placeholder="Enter your password"
                           error={Boolean(errors.password)}
+                          onBlur={(e) => setFieldError('password', validateSignInField('password', e.target.value))}
+                          onChange={(e) => {
+                            if (errors.password) setFieldError('password', validateSignInField('password', e.target.value));
+                          }}
                         />
                       </AuthField>
                       <p className="auth-form__forgot">
@@ -297,8 +477,8 @@ export function AuthLanding() {
                       <section className="auth-section">
                         <h2 className="auth-section__title">Apartment</h2>
                         <div className="auth-grid auth-grid--2">
-                          <AuthField label="Apartment / Mess Name *" name="apt_name" required error={errors.apt_name} />
-                          <AuthField label="Floor / Unit Badge" name="apt_floor" placeholder="7TH FLOOR" />
+                          <AuthField label="Apartment / Mess Name *" name="apt_name" required error={errors.apt_name} onChange={handleRegisterChange('apt_name')} onBlur={handleRegisterBlur('apt_name')} />
+                          <AuthField label="Floor / Unit Badge" name="apt_floor" placeholder="7TH FLOOR" onChange={handleRegisterChange('apt_floor')} />
                           <AuthField label="Password *" name="apt_password" required error={errors.apt_password}>
                             <PasswordInput
                               id="apt_password"
@@ -306,6 +486,8 @@ export function AuthLanding() {
                               required
                               minLength={8}
                               error={Boolean(errors.apt_password)}
+                              onBlur={handleRegisterBlur('apt_password')}
+                              onChange={(e) => handleRegisterChange('apt_password')(e)}
                             />
                           </AuthField>
                           <AuthField
@@ -319,6 +501,8 @@ export function AuthLanding() {
                               name="apt_password_confirm"
                               required
                               error={Boolean(errors.apt_password_confirm)}
+                              onBlur={handleRegisterBlur('apt_password_confirm')}
+                              onChange={(e) => handleRegisterChange('apt_password_confirm')(e)}
                             />
                           </AuthField>
                         </div>
@@ -327,9 +511,9 @@ export function AuthLanding() {
                       <section className="auth-section">
                         <h2 className="auth-section__title">Address</h2>
                         <div className="auth-grid auth-grid--2">
-                          <AuthField label="Road / Street *" name="address_road" required />
-                          <AuthField label="Postal Code *" name="address_postal" required />
-                          <AuthField label="City *" name="address_city" required />
+                          <AuthField label="Road / Street *" name="address_road" required error={errors.address_road} onChange={handleRegisterChange('address_road')} onBlur={handleRegisterBlur('address_road')} />
+                          <AuthField label="Postal Code *" name="address_postal" required error={errors.address_postal} onChange={handleRegisterChange('address_postal')} onBlur={handleRegisterBlur('address_postal')} />
+                          <AuthField label="City *" name="address_city" required error={errors.address_city} onChange={handleRegisterChange('address_city')} onBlur={handleRegisterBlur('address_city')} />
                           <AuthField label="Country *" name="address_country">
                             <select className="form-input" id="address_country" name="address_country" defaultValue="Bangladesh">
                               <option>Bangladesh</option>
@@ -341,27 +525,40 @@ export function AuthLanding() {
                       <section className="auth-section">
                         <h2 className="auth-section__title">Registrant</h2>
                         <div className="auth-grid auth-grid--2">
-                          <AuthField label="Full Name *" name="registrant_name" required />
+                          <AuthField label="Full Name *" name="registrant_name" required error={errors.registrant_name} onChange={handleRegisterChange('registrant_name')} onBlur={handleRegisterBlur('registrant_name')} />
                           <AuthField
-                            label="NID Number *"
+                            label="NID Number"
                             name="registrant_nid"
-                            required
+                            optional
                             pattern="(\d{10}|\d{17})"
                             placeholder="10 or 17 digits"
+                            error={errors.registrant_nid}
+                            onChange={handleRegisterChange('registrant_nid')}
+                            onBlur={handleRegisterBlur('registrant_nid')}
                           />
                           <AuthField
                             label="Phone *"
                             name="registrant_phone"
                             required
-                            placeholder="+880XXXXXXXXXX"
-                            pattern="\+880\d{10}"
-                          />
+                            fullWidth
+                            error={errors.registrant_phone}
+                          >
+                            <PhoneInput
+                              name="registrant_phone"
+                              required
+                              error={errors.registrant_phone}
+                              onChange={handlePhoneChange}
+                            />
+                          </AuthField>
                           <AuthField
                             label="Email *"
                             name="registrant_email"
                             type="email"
                             required
+                            fullWidth
                             error={errors.registrant_email}
+                            onChange={handleRegisterChange('registrant_email')}
+                            onBlur={handleRegisterBlur('registrant_email')}
                           />
                           <AuthField label="Accommodation Type" name="apt_type">
                             <select className="form-input" id="apt_type" name="apt_type" defaultValue="">

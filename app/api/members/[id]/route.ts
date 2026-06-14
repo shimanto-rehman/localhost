@@ -10,7 +10,9 @@ import {
   jsonError,
   handleApiError,
 } from '@/lib/api-helpers';
+import { deleteMemberFromApartment } from '@/lib/delete-member';
 import { sanitizeMemberForClient } from '@/lib/apartment-data';
+import { normalizeMemberPhotoUrl } from '@/lib/member-photo';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -35,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data: {
         name: d.name ?? existing.name,
-        photoUrl: d.photoUrl !== undefined ? d.photoUrl : existing.photoUrl,
+        photoUrl: d.photoUrl !== undefined ? (normalizeMemberPhotoUrl(d.photoUrl) ?? null) : existing.photoUrl,
         email: d.email !== undefined ? (d.email || null) : existing.email,
         phone: d.phone !== undefined ? (d.phone || null) : existing.phone,
         nid: d.nid !== undefined ? (d.nid ? encrypt(d.nid) : null) : existing.nid,
@@ -68,10 +70,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const memberSession = await requireMemberSession(req);
     await requirePermission(memberSession, 'manage_members');
 
-    await prisma.member.updateMany({
-      where: { id, apartmentId: apt.apartmentId },
-      data: { isActive: false },
-    });
+    const deleted = await deleteMemberFromApartment(apt.apartmentId, id);
+    if (!deleted) return jsonError('Member not found', 404);
 
     return jsonOk({ success: true });
   } catch (err) {

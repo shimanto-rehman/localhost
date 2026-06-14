@@ -138,13 +138,20 @@ function BubbleBtn({ item, i, onSelect }: { item: BubbleItem; i: number; onSelec
 // ── Modal ────────────────────────────────────────────────────────────────────
 
 export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { members, refresh, setCurrentMember } = useApp();
+  const { members, refreshMembers, setCurrentMember } = useApp();
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [animClass, setAnimClass] = useState('');
   const passwordRef = useRef<HTMLInputElement>(null);
+
+  // Refresh member list when sign-in modal opens so new members appear immediately.
+  useEffect(() => {
+    if (open) {
+      void refreshMembers();
+    }
+  }, [open, refreshMembers]);
 
   const activeMembers = members.filter(m => m.isActive !== false);
 
@@ -192,7 +199,7 @@ export function MemberLoginModal({ open, onClose }: { open: boolean; onClose: ()
       const data = await res.json();
       if (!res.ok) { toast(data.error || 'Login failed', 'error'); return; }
       setCurrentMember(data.member);
-      await refresh();
+      await refreshMembers();
       toast('Signed in successfully');
       onClose();
       setPassword('');

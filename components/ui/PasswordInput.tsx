@@ -26,6 +26,7 @@ type PasswordInputProps = {
   name?: string;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   required?: boolean;
   minLength?: number;
   placeholder?: string;
@@ -38,6 +39,7 @@ export function PasswordInput({
   name,
   value,
   onChange,
+  onBlur,
   required,
   minLength,
   placeholder,
@@ -58,6 +60,7 @@ export function PasswordInput({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
       />
       <button
         type="button"

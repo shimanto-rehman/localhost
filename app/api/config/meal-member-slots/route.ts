@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest) {
       if (!Number.isInteger(mealSlot) || mealSlot < 0 || mealSlot >= mealsPerDay) {
         throw new ApiError(`Invalid meal slot: ${slotKey}`, 400);
       }
-      return { mealSlot, optedIn };
+      return { mealSlot, optedIn: Boolean(optedIn) };
     });
 
     await Promise.all(

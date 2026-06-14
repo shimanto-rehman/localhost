@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.member.findMany({
-        where: { apartmentId: apt.apartmentId },
+        where: { apartmentId: apt.apartmentId, isActive: true },
         orderBy: { createdAt: 'asc' },
         select: {
           id: true,

@@ -20,7 +20,12 @@ export async function GET(req: NextRequest) {
         },
         include: { adjustments: true },
       }),
-      prisma.expense.findMany({ where: { apartmentId: apt.apartmentId } }),
+      prisma.expense.findMany({
+        where: {
+          apartmentId: apt.apartmentId,
+          monthKey: { gte: `${year - 1}-12`, lte: `${year}-12` },
+        },
+      }),
       getApartmentConfig(apt.apartmentId),
     ]);
 

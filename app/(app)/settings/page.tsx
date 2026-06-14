@@ -17,11 +17,13 @@ import { MemberMealSlotsPanel } from '@/components/settings/MemberMealSlotsPanel
 import { MealSettingsPanel } from '@/components/settings/MealSettingsPanel';
 import { RolePermissionsPanel } from '@/components/settings/RolePermissionsPanel';
 import { ActivityLogPanel } from '@/components/settings/ActivityLogPanel';
+import { DangerZoneModals, type DangerActionId } from '@/components/settings/DangerZoneModals';
 import type { OptInMatrix } from '@/lib/calculations/bills';
 import type { MealSlotOptInMatrix } from '@/lib/calculations/meals';
 import type { RolePermissionsConfig } from '@/lib/role-permissions';
 import { memberHasPerm } from '@/lib/client-permissions';
 import { CONFIG_KEY } from '@/lib/api/cache-keys';
+import { MEMBER_PHOTO_ACCEPT, readMemberPhotoFile } from '@/lib/member-photo';
 
 type Tab = 'members' | 'costs' | 'meals' | 'rent' | 'activity' | 'backup' | 'danger';
 
@@ -32,7 +34,7 @@ type TempMember = {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { members, currentMember, refresh, setCurrentMember, apartment } = useApp();
+  const { members, currentMember, refresh, refreshMembers, addMemberToCache, removeMemberFromCache, setCurrentMember, apartment } = useApp();
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>('members');
   const { data: config, mutate: mutateConfig } = useSWR<Record<string, unknown>>(CONFIG_KEY);
@@ -48,6 +50,13 @@ export default function SettingsPage() {
   const [aptFloor, setAptFloor] = useState('');
   const [apartmentSignOutOpen, setApartmentSignOutOpen] = useState(false);
   const [apartmentSignOutLoading, setApartmentSignOutLoading] = useState(false);
+  const [dangerAction, setDangerAction] = useState<DangerActionId | null>(null);
+  const [dangerLoading, setDangerLoading] = useState(false);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removeMemberLoading, setRemoveMemberLoading] = useState(false);
+  const [restoreBackupFile, setRestoreBackupFile] = useState<File | null>(null);
+  const [restoreBackupLoading, setRestoreBackupLoading] = useState(false);
+  const restoreBackupInputRef = useRef<HTMLInputElement>(null);
 
   const canManageMembers = memberHasPerm(currentMember, 'manage_members');
   const canResetPasswords = memberHasPerm(currentMember, 'reset_passwords');
@@ -90,7 +99,7 @@ export default function SettingsPage() {
   }, [settingsTabs, tab]);
 
   const loadConfig = useCallback(async () => {
-    await mutateConfig();
+    await mutateConfig(undefined, { revalidate: true });
   }, [mutateConfig]);
 
   useEffect(() => {
@@ -122,7 +131,8 @@ export default function SettingsPage() {
     isBillManager?: boolean;
     isActive?: boolean;
   }[]) || [];
-  const memberList = configMemberRows.length > 0 ? configMemberRows : members;
+  const memberList = (configMemberRows.length > 0 ? configMemberRows : members)
+    .filter((m) => m.isActive !== false);
 
   useEffect(() => {
     setTempMembers(memberList.map((m) => ({
@@ -135,13 +145,28 @@ export default function SettingsPage() {
   }, [memberList]);
 
   // Members tab handlers
-  const handlePhotoChange = (memberId: string, file: File) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setTempMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, photoUrl: dataUrl } : m));
-    };
-    reader.readAsDataURL(file);
+  const syncMemberPhotosGlobally = useCallback(async () => {
+    await refreshMembers();
+    await loadConfig();
+  }, [refreshMembers, loadConfig]);
+
+  const handlePhotoChange = async (memberId: string, file: File) => {
+    const result = await readMemberPhotoFile(file);
+    if ('error' in result) {
+      toast(result.error, 'error');
+      return;
+    }
+    setTempMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, photoUrl: result.dataUrl } : m));
+  };
+
+  const handleNewMemberPhoto = async (file: File) => {
+    const result = await readMemberPhotoFile(file);
+    if ('error' in result) {
+      toast(result.error, 'error');
+      if (newMemberPhotoRef.current) newMemberPhotoRef.current.value = '';
+      return;
+    }
+    setNewMemberPhoto(result.dataUrl);
   };
 
   const saveMembers = async () => {
@@ -155,23 +180,47 @@ export default function SettingsPage() {
         const res = await fetch(`/api/members/${m.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: m.name, photoUrl: m.photoUrl }),
+          body: JSON.stringify({
+            name: m.name,
+            photoUrl: m.photoUrl ?? null,
+          }),
         });
-        if (res.ok) savedCount++;
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast(data.error || 'Could not save member', 'error');
+          continue;
+        }
+        savedCount++;
+        if (currentMember?.id === m.id && photoChanged) {
+          setCurrentMember({ ...currentMember, photoUrl: m.photoUrl ?? null });
+        }
       }
     }
     toast(savedCount > 0 ? 'Members saved' : 'No changes to save');
-    await refresh();
-    await loadConfig();
+    await syncMemberPhotosGlobally();
   };
 
-  const removeMember = async (id: string) => {
-    if (!canManageMembers) { toast('You do not have permission to manage members', 'error'); return; }
-    if (!confirm('Remove this member? They will be marked inactive.')) return;
-    const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
-    if (!res.ok) { toast('Could not remove member', 'error'); return; }
-    toast('Member removed — save to apply');
-    await refresh();
+  const confirmRemoveMember = async () => {
+    if (!removeMemberTarget || !canManageMembers) return;
+    const removedId = removeMemberTarget.id;
+    setRemoveMemberLoading(true);
+    try {
+      const res = await fetch(`/api/members/${removedId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        toast('Could not remove member', 'error');
+        return;
+      }
+      setTempMembers((prev) => prev.filter((m) => m.id !== removedId));
+      removeMemberFromCache(removedId);
+      if (currentMember?.id === removedId) {
+        setCurrentMember(null);
+      }
+      toast('Member removed');
+      setRemoveMemberTarget(null);
+      void syncMemberPhotosGlobally();
+    } finally {
+      setRemoveMemberLoading(false);
+    }
   };
 
   const setRole = async (type: 'admin' | 'billManager', memberId: string) => {
@@ -209,12 +258,34 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newMemberName.trim(), photoUrl: newMemberPhoto || null }),
     });
-    if (!res.ok) { toast('Could not add member', 'error'); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const fieldMsg = data.fields && Object.values(data.fields).join(' · ');
+      toast(fieldMsg || data.error || 'Could not add member', 'error');
+      return;
+    }
+    const data = await res.json();
+    addMemberToCache({
+      id: data.id,
+      name: data.name,
+      photoUrl: data.photoUrl ?? null,
+      isActive: true,
+      isAdmin: data.isAdmin ?? false,
+      isBillManager: data.isBillManager ?? false,
+    });
+    setTempMembers((prev) => [...prev, {
+      id: data.id,
+      name: data.name,
+      photoUrl: data.photoUrl ?? null,
+      isAdmin: false,
+      isBillManager: false,
+    }]);
     toast('Member added (default password: 1234)');
     setNewMemberName('');
     setNewMemberPhoto('');
+    if (newMemberPhotoRef.current) newMemberPhotoRef.current.value = '';
     setShowAddModal(false);
-    await refresh();
+    await syncMemberPhotosGlobally();
   };
 
   const saveAptDetails = async () => {
@@ -285,19 +356,110 @@ export default function SettingsPage() {
     }
   };
 
-  const restoreBackup = async (file: File) => {
-    if (!confirm('Replace ALL current data with this backup? This cannot be undone.')) return;
-    const text = await file.text();
-    const backup = JSON.parse(text);
-    const res = await fetch('/api/backup/restore', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backup }),
-    });
-    if (!res.ok) { toast('Restore failed', 'error'); return; }
-    toast('Backup restored');
-    await refresh();
-    loadConfig();
+  const executeDangerAction = async (password: string) => {
+    if (!dangerAction) return;
+    setDangerLoading(true);
+    try {
+      let res: Response | null = null;
+      switch (dangerAction) {
+        case 'unlock-month': {
+          const mk = `${unlockYear}-${unlockMonth.padStart(2, '0')}`;
+          res = await fetch(`/api/bills/${mk}/lock`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (res.ok) toast('Month unlocked');
+          break;
+        }
+        case 'reset-bills':
+          res = await fetch('/api/danger/reset-bills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (res.ok) {
+            toast('All bill data cleared');
+            await refresh();
+          }
+          break;
+        case 'reset-meals':
+          res = await fetch('/api/danger/reset-meals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (res.ok) {
+            toast('All meal data cleared');
+            await refresh();
+          }
+          break;
+        case 'reset-all':
+          res = await fetch('/api/danger/reset-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (res.ok) {
+            toast('Everything reset');
+            await syncMemberPhotosGlobally();
+          }
+          break;
+        case 'delete-apartment':
+          res = await fetch('/api/danger/delete-apartment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setCurrentMember(null);
+            toast(data.message || 'Apartment deleted');
+            router.replace(data.redirect || '/login');
+            return;
+          }
+          break;
+        default:
+          return;
+      }
+
+      if (!res?.ok) {
+        const data = await res?.json().catch(() => ({}));
+        toast(data.error || 'Action failed', 'error');
+        return;
+      }
+
+      setDangerAction(null);
+    } finally {
+      setDangerLoading(false);
+    }
+  };
+
+  const runRestoreBackup = async () => {
+    if (!restoreBackupFile) return;
+    setRestoreBackupLoading(true);
+    try {
+      const text = await restoreBackupFile.text();
+      const backup = JSON.parse(text);
+      const res = await fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup }),
+      });
+      if (!res.ok) {
+        toast('Restore failed', 'error');
+        return;
+      }
+      toast('Backup restored');
+      setRestoreBackupFile(null);
+      if (restoreBackupInputRef.current) restoreBackupInputRef.current.value = '';
+      await refresh();
+      loadConfig();
+    } catch {
+      toast('Restore failed', 'error');
+    } finally {
+      setRestoreBackupLoading(false);
+    }
   };
 
   const fixedContributions = rentSplits.reduce((s, r) => s + (r.fixedAmount || 0), 0);
@@ -354,7 +516,7 @@ export default function SettingsPage() {
                     className="member-config__remove"
                     type="button"
                     title="Remove"
-                    onClick={() => removeMember(m.id)}
+                    onClick={() => setRemoveMemberTarget({ id: m.id, name: m.name })}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -379,12 +541,13 @@ export default function SettingsPage() {
                     {canManageMembers && (
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={MEMBER_PHOTO_ACCEPT}
                         className="photo-input"
                         style={{ display: 'none' }}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) handlePhotoChange(m.id, file);
+                          if (file) void handlePhotoChange(m.id, file);
+                          e.target.value = '';
                         }}
                       />
                     )}
@@ -756,10 +919,14 @@ export default function SettingsPage() {
                   <label className="btn btn-danger btn-sm" style={{ cursor: 'pointer' }}>
                     Restore
                     <input
+                      ref={restoreBackupInputRef}
                       type="file"
                       accept=".json,application/json"
                       hidden
-                      onChange={(e) => e.target.files?.[0] && restoreBackup(e.target.files[0])}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setRestoreBackupFile(file);
+                      }}
                     />
                   </label>
                 </div>
@@ -791,11 +958,9 @@ export default function SettingsPage() {
                   </select>
                 </div>
               </div>
-              <button className="btn btn-danger btn-sm" type="button" onClick={async () => {
-                const mk = `${unlockYear}-${unlockMonth.padStart(2, '0')}`;
-                await fetch(`/api/bills/${mk}/lock`, { method: 'DELETE' });
-                toast('Month unlocked');
-              }}>Unlock Month</button>
+              <button className="btn btn-danger btn-sm" type="button" onClick={() => setDangerAction('unlock-month')}>
+                Unlock Month
+              </button>
             </div>
 
             <div className="danger-row">
@@ -803,11 +968,9 @@ export default function SettingsPage() {
                 <div className="danger-row__title">Reset All Bill Data</div>
                 <div className="danger-row__desc">Clears all monthly electricity entries. Configuration is kept.</div>
               </div>
-              <button className="btn btn-danger btn-sm" type="button" onClick={async () => {
-                if (!confirm('This will clear ALL bill data. Cannot be undone.')) return;
-                await fetch('/api/danger/reset-bills', { method: 'POST' });
-                toast('All bills cleared');
-              }}>Reset Bills</button>
+              <button className="btn btn-danger btn-sm" type="button" onClick={() => setDangerAction('reset-bills')}>
+                Reset All Bill Data
+              </button>
             </div>
 
             <div className="danger-row">
@@ -815,11 +978,19 @@ export default function SettingsPage() {
                 <div className="danger-row__title">Reset All Meals</div>
                 <div className="danger-row__desc">Clears all meal records for all months.</div>
               </div>
-              <button className="btn btn-danger btn-sm" type="button" onClick={async () => {
-                if (!confirm('This will clear ALL meal data. Cannot be undone.')) return;
-                await fetch('/api/danger/reset-meals', { method: 'POST' });
-                toast('All meal data cleared');
-              }}>Reset Meals</button>
+              <button className="btn btn-danger btn-sm" type="button" onClick={() => setDangerAction('reset-meals')}>
+                Reset All Meals
+              </button>
+            </div>
+
+            <div className="danger-row">
+              <div>
+                <div className="danger-row__title danger-row__title--alert">Delete Apartment</div>
+                <div className="danger-row__desc">Permanently deletes this apartment and all data. You will need to register again.</div>
+              </div>
+              <button className="btn btn-danger btn-sm" type="button" onClick={() => setDangerAction('delete-apartment')}>
+                Delete Apartment
+              </button>
             </div>
 
             <div className="danger-row">
@@ -827,14 +998,9 @@ export default function SettingsPage() {
                 <div className="danger-row__title danger-row__title--alert">Reset Everything</div>
                 <div className="danger-row__desc">Wipes all data including members, config, and bills. Cannot be undone.</div>
               </div>
-              <button className="btn btn-danger btn-sm" type="button" onClick={async () => {
-                if (!confirm('This will WIPE EVERYTHING. Type RESET to confirm.') ) return;
-                const input = prompt('Type RESET to confirm:');
-                if (input !== 'RESET') return;
-                await fetch('/api/danger/reset-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'RESET' }) });
-                toast('Everything reset');
-                await refresh();
-              }}>Reset All</button>
+              <button className="btn btn-danger btn-sm" type="button" onClick={() => setDangerAction('reset-all')}>
+                Reset All
+              </button>
             </div>
           </div>
         </div>
@@ -874,18 +1040,15 @@ export default function SettingsPage() {
                     <input
                       ref={newMemberPhotoRef}
                       type="file"
-                      accept="image/*"
+                      accept={MEMBER_PHOTO_ACCEPT}
                       hidden
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (ev) => setNewMemberPhoto(ev.target?.result as string);
-                        reader.readAsDataURL(file);
+                        if (file) void handleNewMemberPhoto(file);
                       }}
                     />
                   </label>
-                  <span className="photo-row__hint">JPG, PNG or WebP</span>
+                  <span className="photo-row__hint">Optional · JPG, PNG or WebP · max 200KB</span>
                 </div>
               </div>
             </div>
@@ -899,6 +1062,51 @@ export default function SettingsPage() {
             </div>
           </div>
       </ModalBackdrop>
+
+      <DangerZoneModals
+        action={dangerAction}
+        apartmentName={apartment?.name}
+        loading={dangerLoading}
+        onClose={() => setDangerAction(null)}
+        onConfirmPassword={executeDangerAction}
+      />
+
+      <ConfirmDialog
+        open={Boolean(removeMemberTarget)}
+        onClose={() => { if (!removeMemberLoading) setRemoveMemberTarget(null); }}
+        onConfirm={confirmRemoveMember}
+        title="Remove member?"
+        description={
+          removeMemberTarget
+            ? `${removeMemberTarget.name} will be permanently deleted along with their payment methods and personal records. Historical bill snapshots are kept.`
+            : ''
+        }
+        confirmLabel="Remove member"
+        cancelLabel="Keep member"
+        variant="danger"
+        loading={removeMemberLoading}
+      />
+
+      <ConfirmDialog
+        open={Boolean(restoreBackupFile)}
+        onClose={() => {
+          if (!restoreBackupLoading) {
+            setRestoreBackupFile(null);
+            if (restoreBackupInputRef.current) restoreBackupInputRef.current.value = '';
+          }
+        }}
+        onConfirm={runRestoreBackup}
+        title="Restore from backup?"
+        description={
+          restoreBackupFile
+            ? `This will replace all current data with "${restoreBackupFile.name}". This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Restore backup"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={restoreBackupLoading}
+      />
 
       <ConfirmDialog
         open={apartmentSignOutOpen}

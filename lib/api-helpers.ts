@@ -77,7 +77,7 @@ export function handleApiError(err: unknown) {
   }
   console.error(err);
   const prismaCode = (err as { code?: string })?.code;
-  if (prismaCode === 'P1001' || prismaCode === 'P1002') {
+  if (prismaCode === 'P1001' || prismaCode === 'P1002' || prismaCode === 'P2024') {
     return jsonError('Database is temporarily unavailable. Please try again in a moment.', 503);
   }
   return jsonError('Something went wrong. Please try again.', 500);
