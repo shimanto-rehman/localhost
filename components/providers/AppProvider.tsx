@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, ReactNode } from 'react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { BOOTSTRAP_KEY, CONFIG_KEY } from '@/lib/api/cache-keys';
 import { apiFetch } from '@/lib/api/fetcher';
@@ -46,7 +46,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
 
   const apartment = data?.apartment ?? null;
-  const members = data?.members ?? [];
+  const members = useMemo(() => data?.members ?? [], [data?.members]);
   const currentMember = data?.member ?? null;
   const loading = isLoading && !data;
 
@@ -124,25 +124,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data?.apartment) prefetchAppShell();
   }, [data?.apartment]);
 
-  return (
-    <AppContext.Provider
-      value={{
-        apartment,
-        members,
-        currentMember,
-        loading,
-        isValidating,
-        error,
-        refresh,
-        refreshMembers,
-        addMemberToCache,
-        removeMemberFromCache,
-        setCurrentMember,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const value = useMemo<AppContextValue>(
+    () => ({
+      apartment,
+      members,
+      currentMember,
+      loading,
+      isValidating,
+      error,
+      refresh,
+      refreshMembers,
+      addMemberToCache,
+      removeMemberFromCache,
+      setCurrentMember,
+    }),
+    [
+      apartment,
+      members,
+      currentMember,
+      loading,
+      isValidating,
+      error,
+      refresh,
+      refreshMembers,
+      addMemberToCache,
+      removeMemberFromCache,
+      setCurrentMember,
+    ],
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

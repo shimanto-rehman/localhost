@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
 import { fmt } from '@/lib/utils';
@@ -127,12 +127,17 @@ export default function SettingsPage() {
     id: string;
     name: string;
     photoUrl?: string | null;
+    email?: string | null;
+    phone?: string | null;
     isAdmin?: boolean;
     isBillManager?: boolean;
     isActive?: boolean;
   }[]) || [];
-  const memberList = (configMemberRows.length > 0 ? configMemberRows : members)
-    .filter((m) => m.isActive !== false);
+  const memberList = useMemo(
+    () => (configMemberRows.length > 0 ? configMemberRows : members).filter((m) => m.isActive !== false),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config?.members, members],
+  );
 
   useEffect(() => {
     setTempMembers(memberList.map((m) => ({
@@ -225,13 +230,24 @@ export default function SettingsPage() {
 
   const setRole = async (type: 'admin' | 'billManager', memberId: string) => {
     if (!canManageRoles) { toast('You do not have permission to assign roles', 'error'); return; }
+    if (type === 'admin') {
+      const target = memberList.find((m) => m.id === memberId);
+      if (!target?.email?.trim() || !target?.phone?.trim()) {
+        toast('Member must have email and phone number in their profile to be admin', 'error');
+        return;
+      }
+    }
     const body = type === 'admin' ? { adminMemberId: memberId } : { billManagerId: memberId };
     const res = await fetch('/api/config/roles', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) { toast('Could not update role', 'error'); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error || 'Could not update role', 'error');
+      return;
+    }
     toast(`${type === 'admin' ? 'Admin' : 'Bill Manager'} role assigned`);
     await refresh();
   };

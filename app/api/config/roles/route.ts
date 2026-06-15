@@ -22,6 +22,9 @@ export async function PATCH(req: NextRequest) {
         where: { id: adminMemberId, apartmentId: apt.apartmentId, isActive: true },
       });
       if (!admin) return jsonError('Invalid admin member', 400);
+      if (!admin.email?.trim() || !admin.phone?.trim()) {
+        return jsonError('Member must have email and phone number in their profile to be admin', 400);
+      }
     }
 
     if (billManagerId) {

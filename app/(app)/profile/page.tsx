@@ -11,6 +11,7 @@ import { useApp } from '@/components/providers/AppProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { profileKey } from '@/lib/api/cache-keys';
 import { MemberLoginModal } from '@/components/auth/MemberLoginModal';
+import { ProfileEditModal } from '@/components/profile/ProfileEditModal';
 
 type ProfileTab = 'overview' | 'bills' | 'meals' | 'expenses';
 
@@ -56,6 +57,14 @@ type ProfileData = {
     category: string;
     monthKey: string;
   }[];
+  contact?: {
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    nid?: string | null;
+  };
 };
 
 const TABS: { id: ProfileTab; label: string }[] = [
@@ -70,9 +79,10 @@ export default function ProfilePage() {
   const { theme } = useTheme();
   const [tab, setTab] = useState<ProfileTab>('overview');
   const [loginOpen, setLoginOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const year = new Date().getFullYear();
 
-  const { data, isLoading } = useSWR<ProfileData>(
+  const { data, isLoading, mutate } = useSWR<ProfileData>(
     currentMember ? profileKey(year) : null,
   );
 
@@ -175,7 +185,21 @@ export default function ProfilePage() {
           />
           <div className="profile-hero__text">
             <h1 className="profile-hero__name">{currentMember.name}</h1>
-            <p className="profile-hero__handle">{data?.apartmentName || apartment?.name}</p>
+            <div className="profile-hero__meta-row">
+              <span className="profile-hero__handle">{data?.apartmentName || apartment?.name}</span>
+              <button
+                type="button"
+                className="profile-hero__edit-btn"
+                onClick={() => setEditOpen(true)}
+                aria-label="Edit profile"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                <span>Edit profile</span>
+              </button>
+            </div>
             <div className="profile-hero__badges">
               <span className="profile-badge profile-badge--role">{data?.member.roleLabel ?? 'Member'}</span>
               {data?.optedInCosts && data.optedInCosts.length > 0 && (
@@ -395,6 +419,19 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+      <ProfileEditModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => void mutate()}
+        memberIndex={memberIndex >= 0 ? memberIndex : 0}
+        initial={{
+          name: data?.contact?.name || currentMember.name,
+          photoUrl: data?.contact?.photoUrl ?? currentMember.photoUrl,
+          email: data?.contact?.email ?? currentMember.email,
+          phone: data?.contact?.phone ?? currentMember.phone,
+          nid: data?.contact?.nid ?? null,
+        }}
+      />
     </section>
   );
 }
