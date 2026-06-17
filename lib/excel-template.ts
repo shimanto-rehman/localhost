@@ -211,7 +211,11 @@ export function monthLabelOf(monthKey: string): string {
 export async function loadWorkbook(): Promise<ExcelJS.Workbook> {
   const buffer = await readFile(TEMPLATE_PATH);
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+  // ExcelJS runtime accepts Uint8Array; its .d.ts still references an older Buffer type.
+  const loadXlsx = wb.xlsx.load.bind(wb.xlsx) as unknown as (
+    input: Uint8Array,
+  ) => Promise<ExcelJS.Workbook>;
+  await loadXlsx(new Uint8Array(buffer));
   return wb;
 }
 
