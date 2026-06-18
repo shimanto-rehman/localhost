@@ -1,2 +1,0 @@
-Make the Registration Simpler with Apartment Name, Registerer Name, Mobile Number, Email, Password (Mandetory)
-Then Once Registration is done, then they will Edit everything from configuration page
