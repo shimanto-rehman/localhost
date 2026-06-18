@@ -1372,6 +1372,20 @@ a.nav-link {
   line-height: 1.55;
   color: var(--text-muted);
 }
+.lp-dev-credit__link {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+.lp-dev-credit__link:hover {
+  color: var(--text);
+  opacity: 0.9;
+}
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    APP UI MOCKUPS  (.mock-*)

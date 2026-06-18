@@ -31,6 +31,14 @@ export function DeveloperCredit() {
             <p className="lp-dev-credit__name">{DEVELOPER.name}</p>
             <p className="lp-dev-credit__role">{DEVELOPER.role}</p>
             <p className="lp-dev-credit__bio">{DEVELOPER.bio}</p>
+            <a
+              className="lp-dev-credit__link"
+              href={DEVELOPER.portfolioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              www.shimanto.online
+            </a>
           </div>
         </div>
       </div>

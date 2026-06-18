@@ -49,6 +49,7 @@ export const DEVELOPER = {
   role: 'Lead Developer & Product Owner',
   bio: 'Designed and built LocalHost for fair, transparent bill splitting in shared flats and messes.',
   photoSrc: '/assets/images/shimanto.jpg',
+  portfolioUrl: 'https://www.shimanto.online',
 };
 
 export const MFS_WALLET_TYPES = [
