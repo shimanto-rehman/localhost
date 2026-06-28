@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { MEAL_POOL_EXPENSE_CATEGORIES } from './constants';
+import type { GuestMealMode } from './constants';
 import { calculateMealCosts } from './calculations/meals';
 import { loadMealSlotOptInMatrix } from './meal-member-slots';
 
@@ -14,9 +15,11 @@ function monthDateRange(monthKey: string) {
 export async function getMealCostInputs(apartmentId: string, monthKey: string) {
   const range = monthDateRange(monthKey);
 
-  const [records, shopping, mealConfig, foodExpenseRows] = await Promise.all([
+  const [records, shopping, mealConfig, foodExpenseRows, guestRecords, activeMembers] =
+    await Promise.all([
     prisma.mealRecord.findMany({
       where: { apartmentId, mealDate: range },
+      select: { memberId: true, mealDate: true, mealSlot: true, isConfirmed: true },
     }),
     prisma.mealShopping.findMany({
       where: { apartmentId, monthKey },
@@ -30,10 +33,20 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
       },
       select: { memberId: true, price: true },
     }),
+    prisma.guestMealRecord.findMany({
+      where: { apartmentId, mealDate: range },
+      select: { memberId: true, mealDate: true, mealSlot: true, guestCount: true },
+    }),
+    prisma.member.findMany({
+      where: { apartmentId, isActive: true },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   const mealsPerDay = mealConfig?.mealsPerDay ?? 2;
   const slotOptInMatrix = await loadMealSlotOptInMatrix(apartmentId, mealsPerDay);
+  const guestMealMode = (mealConfig?.guestMealMode ?? 'EQUAL_SPLIT') as GuestMealMode;
 
   return {
     records: records.map((r) => ({
@@ -44,8 +57,17 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
     })),
     shopping: shopping.map((s) => ({ memberId: s.memberId, amount: s.amount })),
     foodExpenses: foodExpenseRows.map((e) => ({ memberId: e.memberId, amount: e.price })),
+    guestRecords: guestRecords.map((g) => ({
+      memberId: g.memberId,
+      mealDate: g.mealDate.toISOString().slice(0, 10),
+      mealSlot: g.mealSlot,
+      guestCount: g.guestCount,
+    })),
     rateOverride: mealConfig?.rateOverride,
     slotOptInMatrix,
+    guestMealMode,
+    activeMemberIds: activeMembers.map((m) => m.id),
+    mealConfig,
   };
 }
 
@@ -57,5 +79,12 @@ export async function getMealSummary(apartmentId: string, monthKey: string) {
     inputs.rateOverride,
     inputs.slotOptInMatrix,
     inputs.foodExpenses,
+    inputs.guestRecords,
+    inputs.guestMealMode,
+    inputs.activeMemberIds,
+    {
+      monthKey,
+      mealsPerDay: inputs.mealConfig?.mealsPerDay ?? 2,
+    },
   );
 }

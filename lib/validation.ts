@@ -105,9 +105,17 @@ export const mealSettingsSchema = z.object({
   mealNames: z.array(z.string().trim().min(1).max(40)).min(1).max(6),
   weekStartDay: z.number().int().min(0).max(6),
   rateOverride: z.number().int().positive().nullable().optional(),
+  guestMealMode: z.enum(['EQUAL_SPLIT', 'HOST_PAYS']).optional(),
 }).refine((d) => d.mealNames.length === d.mealsPerDay, {
   message: 'Meal names count must match meals per day',
   path: ['mealNames'],
+});
+
+export const guestMealPatchSchema = z.object({
+  memberId: z.string().uuid(),
+  mealDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mealSlot: z.number().int().min(0).max(5),
+  guestCount: z.number().int().min(0).max(20),
 });
 
 export const mealMemberSlotsPatchSchema = z.object({

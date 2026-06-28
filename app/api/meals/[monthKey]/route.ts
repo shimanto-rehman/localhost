@@ -14,18 +14,20 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const apt = await requireAptSession(req);
 
-    const [shopping, mealMonth, mealConfig, members, mealInputs] = await Promise.all([
+    const [shopping, mealMonth, mealInputs] = await Promise.all([
       prisma.mealShopping.findMany({
         where: { apartmentId: apt.apartmentId, monthKey },
-        include: { member: { select: { name: true, photoUrl: true } } },
+        select: {
+          id: true,
+          itemName: true,
+          amount: true,
+          member: { select: { name: true, photoUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.mealMonth.findUnique({
         where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey } },
-      }),
-      prisma.mealConfig.findUnique({ where: { apartmentId: apt.apartmentId } }),
-      prisma.member.findMany({
-        where: { apartmentId: apt.apartmentId, isActive: true },
-        orderBy: { createdAt: 'asc' },
+        select: { isFinalized: true },
       }),
       getMealCostInputs(apt.apartmentId, monthKey),
     ]);
@@ -36,14 +38,18 @@ export async function GET(req: NextRequest, { params }: Params) {
       mealInputs.rateOverride,
       mealInputs.slotOptInMatrix,
       mealInputs.foodExpenses,
+      mealInputs.guestRecords,
+      mealInputs.guestMealMode,
+      mealInputs.activeMemberIds,
+      {
+        monthKey,
+        mealsPerDay: mealInputs.mealConfig?.mealsPerDay ?? 2,
+      },
     );
 
     return jsonOk({
-      records: mealInputs.records,
       shopping,
-      mealMonth,
-      mealConfig,
-      members,
+      mealConfig: mealInputs.mealConfig,
       summary,
       slotOptInMatrix: mealInputs.slotOptInMatrix,
       isFinalized: mealMonth?.isFinalized ?? false,

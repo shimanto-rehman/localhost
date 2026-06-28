@@ -13,6 +13,29 @@ import {
 
 type Params = { params: Promise<{ monthKey: string }> };
 
+const recordSelect = {
+  memberId: true,
+  mealDate: true,
+  mealSlot: true,
+  isConfirmed: true,
+} as const;
+
+const guestSelect = {
+  memberId: true,
+  mealDate: true,
+  mealSlot: true,
+  guestCount: true,
+} as const;
+
+function serializeRecord<T extends { mealDate: Date }>(
+  row: T,
+): Omit<T, 'mealDate'> & { mealDate: string } {
+  return {
+    ...row,
+    mealDate: row.mealDate.toISOString().slice(0, 10),
+  };
+}
+
 export async function GET(req: NextRequest, { params }: Params) {
   try {
     const { monthKey } = await params;
@@ -31,19 +54,24 @@ export async function GET(req: NextRequest, { params }: Params) {
       return jsonOk({
         weekDates: [],
         records: [],
+        guestRecords: [],
         slotOptInMatrix: {},
       });
     }
 
-    const [records, slotOptInMatrix] = await Promise.all([
+    const range = {
+      gte: weekDates[0],
+      lte: weekDates[weekDates.length - 1],
+    };
+
+    const [records, guestRecords, slotOptInMatrix] = await Promise.all([
       prisma.mealRecord.findMany({
-        where: {
-          apartmentId: apt.apartmentId,
-          mealDate: {
-            gte: weekDates[0],
-            lte: weekDates[weekDates.length - 1],
-          },
-        },
+        where: { apartmentId: apt.apartmentId, mealDate: range },
+        select: recordSelect,
+      }),
+      prisma.guestMealRecord.findMany({
+        where: { apartmentId: apt.apartmentId, mealDate: range },
+        select: guestSelect,
       }),
       loadMealSlotOptInMatrix(apt.apartmentId, mealsPerDay),
     ]);
@@ -52,7 +80,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       weekIndex,
       weekDates: weekDates.map((d) => d.toISOString().slice(0, 10)),
       totalWeeks: weeks.length,
-      records,
+      records: records.map(serializeRecord),
+      guestRecords: guestRecords.map(serializeRecord),
       mealConfig,
       slotOptInMatrix,
     });
@@ -70,14 +99,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const mealMonth = await prisma.mealMonth.findUnique({
       where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey } },
+      select: { isFinalized: true },
     });
     if (mealMonth?.isFinalized) return jsonError('Meals finalized for this month', 403);
 
     const { memberId, mealDate, mealSlot, isConfirmed } = await req.json();
-    const date = new Date(mealDate);
+    const date = new Date(mealDate + 'T12:00:00');
 
     const mealConfig = await prisma.mealConfig.findUnique({
       where: { apartmentId: apt.apartmentId },
+      select: { mealsPerDay: true },
     });
     const mealsPerDay = mealConfig?.mealsPerDay ?? 2;
     if (mealSlot < 0 || mealSlot >= mealsPerDay) {
@@ -112,9 +143,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         confirmedBy: member.memberId,
         confirmedAt: isConfirmed ? new Date() : null,
       },
+      select: recordSelect,
     });
 
-    return jsonOk(record);
+    return jsonOk(serializeRecord(record));
   } catch (err) {
     return handleApiError(err);
   }

@@ -40,6 +40,7 @@ model Apartment {
   mealConfig       MealConfig?
   mealMemberSlots  MealMemberSlot[]
   mealRecords      MealRecord[]
+  guestMealRecords GuestMealRecord[]
   mealShopping     MealShopping[]
   mealMonths       MealMonth[]
   expenses         Expense[]
@@ -87,6 +88,7 @@ model Member {
   billAdjustments        BillAdjustment[]
   lockedBills            MonthlyBill[] @relation("LockedBy")
   mealRecords            MealRecord[]
+  guestMealRecords       GuestMealRecord[]
   mealMemberSlots        MealMemberSlot[]
   mealShopping           MealShopping[]
   mealShoppingAdded      MealShopping[] @relation("AddedBy")
@@ -224,18 +226,24 @@ model BillAdjustment {
 }
 
 model MealConfig {
-  id           String   @id @default(uuid()) @db.Uuid
-  apartmentId  String   @unique @map("apartment_id") @db.Uuid
-  mealsPerDay  Int      @default(2) @map("meals_per_day")
-  mealNames    String[] @default(["Lunch", "Dinner"]) @map("meal_names")
-  weekStartDay Int      @default(6) @map("week_start_day")
-  rateOverride Int?     @map("rate_override")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String         @id @default(uuid()) @db.Uuid
+  apartmentId   String         @unique @map("apartment_id") @db.Uuid
+  mealsPerDay   Int            @default(2) @map("meals_per_day")
+  mealNames     String[]       @default(["Lunch", "Dinner"]) @map("meal_names")
+  weekStartDay  Int            @default(6) @map("week_start_day")
+  rateOverride  Int?           @map("rate_override")
+  guestMealMode GuestMealMode  @default(EQUAL_SPLIT) @map("guest_meal_mode")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
   apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
 
   @@map("meal_config")
+}
+
+enum GuestMealMode {
+  EQUAL_SPLIT
+  HOST_PAYS
 }
 
 model MealMemberSlot {
@@ -269,6 +277,24 @@ model MealRecord {
   @@unique([apartmentId, memberId, mealDate, mealSlot])
   @@index([apartmentId, memberId])
   @@map("meal_records")
+}
+
+model GuestMealRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  apartmentId String   @map("apartment_id") @db.Uuid
+  memberId    String   @map("member_id") @db.Uuid
+  mealDate    DateTime @map("meal_date") @db.Date
+  mealSlot    Int      @map("meal_slot")
+  guestCount  Int      @default(0) @map("guest_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([apartmentId, memberId, mealDate, mealSlot])
+  @@index([apartmentId, mealDate])
+  @@map("guest_meal_records")
 }
 
 model MealShopping {

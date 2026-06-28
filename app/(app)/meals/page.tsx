@@ -1,19 +1,85 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { fmt, monthKey } from '@/lib/utils';
-import { MONTH_NAMES } from '@/lib/constants';
+import { GUEST_MEAL_MODE_LABELS, MONTH_NAMES, type GuestMealMode } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
+import { MemberPicker } from '@/components/ui/MemberPicker';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
 import { PaymentMethodsModal } from '@/components/ui/PaymentMethodsModal';
 import { mealChecklistKey, mealKey } from '@/lib/api/cache-keys';
-import type { MealSlotOptInMatrix } from '@/lib/calculations/meals';
+import { apiFetch } from '@/lib/api/fetcher';
+import { getCurrentWeekIndex, getDailyMealTotals, isMealConfirmed, type MealSlotOptInMatrix } from '@/lib/calculations/meals';
 import { memberHasPerm } from '@/lib/client-permissions';
 
 const DAY_INITIAL = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+type ChecklistRecord = {
+  memberId: string;
+  mealDate: string;
+  mealSlot: number;
+  isConfirmed: boolean;
+};
+
+type GuestRecord = {
+  memberId: string;
+  mealDate: string;
+  mealSlot: number;
+  guestCount: number;
+};
+
+type ChecklistData = Record<string, unknown> & {
+  records?: ChecklistRecord[];
+  guestRecords?: GuestRecord[];
+};
+
+function mealDateKey(date: string) {
+  return date.slice(0, 10);
+}
+
+function upsertChecklistRecord(
+  records: ChecklistRecord[],
+  memberId: string,
+  mealDate: string,
+  mealSlot: number,
+  isConfirmed: boolean,
+): ChecklistRecord[] {
+  const d = mealDateKey(mealDate);
+  const idx = records.findIndex(
+    (r) => r.memberId === memberId && mealDateKey(r.mealDate) === d && r.mealSlot === mealSlot,
+  );
+  if (idx >= 0) {
+    const next = [...records];
+    next[idx] = { ...next[idx], isConfirmed };
+    return next;
+  }
+  return [...records, { memberId, mealDate: d, mealSlot, isConfirmed }];
+}
+
+function upsertGuestRecord(
+  records: GuestRecord[],
+  memberId: string,
+  mealDate: string,
+  mealSlot: number,
+  guestCount: number,
+): GuestRecord[] {
+  const d = mealDateKey(mealDate);
+  const idx = records.findIndex(
+    (g) => g.memberId === memberId && mealDateKey(g.mealDate) === d && g.mealSlot === mealSlot,
+  );
+  if (guestCount <= 0) {
+    return records.filter((_, i) => i !== idx);
+  }
+  if (idx >= 0) {
+    const next = [...records];
+    next[idx] = { ...next[idx], guestCount };
+    return next;
+  }
+  return [...records, { memberId, mealDate: d, mealSlot, guestCount }];
+}
 
 export default function MealsPage() {
   const { members, currentMember, apartment } = useApp();
@@ -23,10 +89,15 @@ export default function MealsPage() {
     d.setDate(1);
     return d;
   });
-  const [weekIndex, setWeekIndex] = useState(0);
+  const [weekIndex, setWeekIndex] = useState(() => getCurrentWeekIndex(monthKey(month), 6));
   const [shopForm, setShopForm] = useState({ itemName: '', amount: '' });
   const [bankOpen, setBankOpen] = useState(false);
   const [planPending, setPlanPending] = useState<number | null>(null);
+  const [guestDay, setGuestDay] = useState('');
+  const [guestMemberId, setGuestMemberId] = useState('');
+  const [guestPending, setGuestPending] = useState<string | null>(null);
+  const [liveRecords, setLiveRecords] = useState<ChecklistRecord[]>([]);
+  const [liveGuestRecords, setLiveGuestRecords] = useState<GuestRecord[]>([]);
 
   const year = month.getFullYear();
   const monthNum = month.getMonth() + 1;
@@ -43,29 +114,63 @@ export default function MealsPage() {
     : undefined;
 
   const load = useCallback(async () => {
-    await Promise.all([mutateMeal(), mutateChecklist()]);
-  }, [mutateMeal, mutateChecklist]);
+    await Promise.all([
+      mutateChecklist(),
+      mutateMeal(() => apiFetch(mealKey(mk)), { revalidate: false }),
+    ]);
+  }, [mutateMeal, mutateChecklist, mk]);
+
+  const refreshSummary = useCallback(() => {
+    void mutateMeal(() => apiFetch(mealKey(mk)), { revalidate: false });
+  }, [mutateMeal, mk]);
 
   const shiftMonth = (delta: number) => {
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
-    setWeekIndex(0);
   };
 
   const toggleMeal = async (memberId: string, mealDate: string, mealSlot: number, current: boolean) => {
     if (!canEditChecklist || isFinalized) return;
     const todayStr = new Date().toISOString().slice(0, 10);
     if (mealDate > todayStr) return;
+
+    const nextConfirmed = !current;
+
+    setLiveRecords((prev) =>
+      upsertChecklistRecord(prev, memberId, mealDate, mealSlot, nextConfirmed),
+    );
+    setGuestDay(mealDate);
+
+    void mutateChecklist(
+      (prev) => {
+        const data = prev as ChecklistData | undefined;
+        if (!data) return prev;
+        return {
+          ...data,
+          records: upsertChecklistRecord(
+            (data.records as ChecklistRecord[]) || [],
+            memberId,
+            mealDate,
+            mealSlot,
+            nextConfirmed,
+          ),
+        };
+      },
+      { revalidate: false },
+    );
+
     const res = await fetch(`/api/meals/${mk}/checklist`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memberId, mealDate, mealSlot, isConfirmed: !current }),
+      body: JSON.stringify({ memberId, mealDate, mealSlot, isConfirmed: nextConfirmed }),
     });
     if (!res.ok) {
+      setLiveRecords((checklist?.records as ChecklistRecord[]) || []);
+      void mutateChecklist();
       const d = await res.json().catch(() => ({}));
       toast(d.error || 'Could not update meal', 'error');
       return;
     }
-    load();
+    refreshSummary();
   };
 
   const toggleMySlot = async (slot: number, optedIn: boolean) => {
@@ -119,26 +224,44 @@ export default function MealsPage() {
 
   const weekDates = (checklist?.weekDates as string[]) || [];
   const totalWeeks = (checklist?.totalWeeks as number) || 1;
-  const records = (checklist?.records as { memberId: string; mealDate: string; mealSlot: number; isConfirmed: boolean }[]) || [];
+
+  useEffect(() => {
+    setLiveRecords((checklist?.records as ChecklistRecord[]) || []);
+    setLiveGuestRecords((checklist?.guestRecords as GuestRecord[]) || []);
+  }, [checklist, mk, weekIndex]);
+
+  const records = liveRecords;
+  const guestRecords = liveGuestRecords;
   const mealConfig = (checklist?.mealConfig || mealData?.mealConfig) as {
     mealNames: string[];
     mealsPerDay: number;
+    weekStartDay?: number;
     rateOverride?: number | null;
+    guestMealMode?: GuestMealMode;
   } | undefined;
   const mealNames = mealConfig?.mealNames || ['Lunch', 'Dinner'];
   const slots = mealConfig?.mealsPerDay ?? mealNames.length;
+  const weekStartDay = mealConfig?.weekStartDay ?? 6;
   const slotOptInMatrix = (mealData?.slotOptInMatrix || checklist?.slotOptInMatrix || {}) as MealSlotOptInMatrix;
+
+  useEffect(() => {
+    setWeekIndex(getCurrentWeekIndex(mk, weekStartDay));
+  }, [mk]);
 
   const summary = mealData?.summary as {
     totalShoppingPool: number;
     foodExpensePool: number;
     shoppingPool: number;
     totalMealCount: number;
+    totalGuestMealCount?: number;
     perMealCost: number;
     rateMode: 'fixed' | 'auto';
+    guestMealMode?: GuestMealMode;
     memberSummaries: {
       memberId: string;
       mealCount: number;
+      guestMealCount?: number;
+      guestMealCost?: number;
       shoppingContribution: number;
       foodContribution: number;
       mealShoppingContribution: number;
@@ -155,21 +278,90 @@ export default function MealsPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const currentMonthStr = `${year}-${String(monthNum).padStart(2, '0')}`;
   const activeMembers = members.filter((m) => m.isActive !== false);
+  const guestMealMode = (mealConfig?.guestMealMode ?? summary?.guestMealMode ?? 'EQUAL_SPLIT') as GuestMealMode;
+
+  useEffect(() => {
+    if (!weekDates.length) return;
+    const defaultDay = weekDates.includes(todayStr) ? todayStr : weekDates[0];
+    setGuestDay((d) => (d && weekDates.includes(d) ? d : defaultDay));
+  }, [weekDates, todayStr]);
+
+  useEffect(() => {
+    if (!guestMemberId && activeMembers.length) {
+      setGuestMemberId(activeMembers[0].id);
+    }
+  }, [activeMembers, guestMemberId]);
 
   const isSlotOptedIn = (memberId: string, slot: number) =>
     slotOptInMatrix[memberId]?.[slot] !== false;
 
-  const getRecord = (memberId: string, date: string, slot: number) =>
-    records.find((r) => r.memberId === memberId && r.mealDate.startsWith(date) && r.mealSlot === slot);
+  const getGuestCount = (memberId: string, date: string, slot: number) => {
+    const rec = guestRecords.find(
+      (g) => g.memberId === memberId && g.mealDate.startsWith(date) && g.mealSlot === slot,
+    );
+    return rec?.guestCount ?? 0;
+  };
+
+  const updateGuestCount = async (memberId: string, date: string, slot: number, next: number) => {
+    if (!canEditChecklist || isFinalized) return;
+    if (date > todayStr) return;
+    const key = `${memberId}-${date}-${slot}`;
+    const safeCount = Math.max(0, next);
+
+    setLiveGuestRecords((prev) =>
+      upsertGuestRecord(prev, memberId, date, slot, safeCount),
+    );
+
+    void mutateChecklist(
+      (prev) => {
+        const data = prev as ChecklistData | undefined;
+        if (!data) return prev;
+        return {
+          ...data,
+          guestRecords: upsertGuestRecord(
+            (data.guestRecords as GuestRecord[]) || [],
+            memberId,
+            date,
+            slot,
+            safeCount,
+          ),
+        };
+      },
+      { revalidate: false },
+    );
+
+    setGuestPending(key);
+    try {
+      const res = await fetch(`/api/meals/${mk}/guests`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId, mealDate: date, mealSlot: slot, guestCount: safeCount }),
+      });
+      if (!res.ok) {
+        setLiveGuestRecords((checklist?.guestRecords as GuestRecord[]) || []);
+        void mutateChecklist();
+        const d = await res.json().catch(() => ({}));
+        toast(d.error || 'Could not update guest meals', 'error');
+        return;
+      }
+      refreshSummary();
+    } finally {
+      setGuestPending(null);
+    }
+  };
+
+  const guestHost = activeMembers.find((m) => m.id === guestMemberId) ?? activeMembers[0];
 
   const getMemberWeekCount = (memberId: string) =>
     weekDates.reduce((count, d) => {
       for (let s = 0; s < slots; s++) {
-        if (!isSlotOptedIn(memberId, s)) continue;
-        if (getRecord(memberId, d, s)?.isConfirmed) count++;
+        if (isMealConfirmed(records, memberId, d, s, slotOptInMatrix, todayStr)) count++;
       }
       return count;
     }, 0);
+
+  const getMemberDayCount = (memberId: string, date: string) =>
+    getDailyMealTotals(memberId, date, records, guestRecords, slots, slotOptInMatrix, todayStr).total;
 
   const weekLabel = weekDates.length > 0
     ? `${SHORT_MONTHS[Number(weekDates[0].slice(5, 7)) - 1]} ${Number(weekDates[0].slice(8))} – ${SHORT_MONTHS[Number(weekDates[weekDates.length - 1].slice(5, 7)) - 1]} ${Number(weekDates[weekDates.length - 1].slice(8))}`
@@ -219,6 +411,9 @@ export default function MealsPage() {
                 Bill Manager payment info
               </button>
             )}
+            <span className="guest-mode-badge" title="Guest meal cost mode">
+              Guest: {GUEST_MEAL_MODE_LABELS[guestMealMode]}
+            </span>
           </div>
 
       <div className="meals-stat-strip">
@@ -287,7 +482,7 @@ export default function MealsPage() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 24 }}>
+      <div className="card card--overflow-visible" style={{ marginBottom: 24 }}>
         <div className="meal-grid-header-row">
           <div>
             <div className="card__title" style={{ marginBottom: 2 }}>Weekly Checklist</div>
@@ -381,8 +576,14 @@ export default function MealsPage() {
                                     </span>
                                   );
                                 }
-                                const rec = getRecord(m.id, d, slot);
-                                const confirmed = rec?.isConfirmed;
+                                const confirmed = isMealConfirmed(
+                                  records,
+                                  m.id,
+                                  d,
+                                  slot,
+                                  slotOptInMatrix,
+                                  todayStr,
+                                );
                                 const label = (mealNames[slot] || 'M')[0].toUpperCase();
                                 return (
                                   <button
@@ -390,7 +591,7 @@ export default function MealsPage() {
                                     type="button"
                                     className={`meal-dot${confirmed ? ' meal-dot--on' : ''}${isFuture ? ' meal-dot--future' : ''}`}
                                     disabled={!canEditChecklist || isFinalized || isFuture}
-                                    onClick={() => toggleMeal(m.id, d, slot, !!confirmed)}
+                                    onClick={() => toggleMeal(m.id, d, slot, confirmed)}
                                     title={`${mealNames[slot]} · ${m.name} · ${d}`}
                                   >
                                     {confirmed ? '✓' : label}
@@ -409,29 +610,141 @@ export default function MealsPage() {
           </div>
         )}
 
-        <div className="meal-legend">
-          {mealNames.slice(0, slots).map((name, s) => (
-            <span key={s} className="meal-legend-item">
-              <span className="meal-dot meal-dot--on" style={{ display: 'inline-flex', fontSize: 9 }}>
-                {name[0].toUpperCase()}
+        {weekDates.length > 0 && (
+          <div className="meal-legend">
+            {mealNames.slice(0, slots).map((name, s) => (
+              <span key={s} className="meal-legend-item">
+                <span className="meal-dot meal-dot--on" style={{ display: 'inline-flex', fontSize: 9 }}>
+                  {name[0].toUpperCase()}
+                </span>
+                {name}
               </span>
-              {name}
+            ))}
+            <span className="meal-legend-item">
+              <span className="meal-dot meal-dot--off-plan" style={{ display: 'inline-flex', fontSize: 9 }}>–</span>
+              Not in plan
             </span>
-          ))}
-          <span className="meal-legend-item">
-            <span className="meal-dot meal-dot--off-plan" style={{ display: 'inline-flex', fontSize: 9 }}>–</span>
-            Not in plan
-          </span>
-          <span className="meal-legend-item">
-            <span className="meal-dot" style={{ display: 'inline-flex', fontSize: 9, opacity: 0.5 }}>L</span>
-            Not confirmed
-          </span>
-          {canEditChecklist && !isFinalized && (
-            <span className="meal-legend-item" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 11 }}>
-              Click to toggle attendance
+            <span className="meal-legend-item">
+              <span className="meal-dot" style={{ display: 'inline-flex', fontSize: 9, opacity: 0.5 }}>L</span>
+              Not confirmed
             </span>
-          )}
-        </div>
+            {canEditChecklist && !isFinalized && (
+              <span className="meal-legend-item" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 11 }}>
+                Click to toggle attendance
+              </span>
+            )}
+          </div>
+        )}
+
+        {weekDates.length > 0 && (
+          <div className="guest-meal-section">
+            <div className="guest-meal-section__head">
+              <div className="card__title" style={{ marginBottom: 2 }}>Guest Meal</div>
+              <div className="form-hint">Track guest meals per host member and day</div>
+            </div>
+
+            <div className="guest-meal-day-tabs">
+              {weekDates.map((d) => {
+                const dayNum = Number(d.slice(8));
+                const isToday = d === todayStr;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`guest-meal-day-tab${guestDay === d ? ' guest-meal-day-tab--active' : ''}${isToday ? ' guest-meal-day-tab--today' : ''}`}
+                    onClick={() => setGuestDay(d)}
+                  >
+                    {SHORT_MONTHS[Number(d.slice(5, 7)) - 1]} {dayNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              className="guest-meal-controls"
+              style={{ '--guest-slots': slots } as React.CSSProperties}
+            >
+              <label className="form-label guest-meal-controls__label-host" htmlFor="guest-host-picker">
+                Host member
+              </label>
+              <span className="form-label guest-meal-controls__label-slots">Guest meals</span>
+              <div className="guest-meal-controls__host">
+                <MemberPicker
+                  id="guest-host-picker"
+                  variant="host"
+                  members={activeMembers}
+                  value={guestMemberId || guestHost?.id || ''}
+                  onChange={setGuestMemberId}
+                  disabled={isFinalized}
+                />
+              </div>
+              <div className="guest-slot-list guest-meal-controls__slots">
+                {mealNames.slice(0, slots).map((name, slot) => {
+                  if (!guestHost || !guestDay) return null;
+                  const count = getGuestCount(guestHost.id, guestDay, slot);
+                  const pending = guestPending === `${guestHost.id}-${guestDay}-${slot}`;
+                  const isFuture = guestDay > todayStr;
+                  return (
+                    <div
+                      key={slot}
+                      className="guest-slot-row"
+                      style={{ '--slot-index': slot } as React.CSSProperties}
+                    >
+                      <span className="guest-slot-row__name">{name}</span>
+                      <div className="guest-slot-row__stepper">
+                        <button
+                          type="button"
+                          className="guest-stepper-btn"
+                          disabled={!canEditChecklist || isFinalized || isFuture || pending || count <= 0}
+                          onClick={() => updateGuestCount(guestHost.id, guestDay, slot, count - 1)}
+                          aria-label={`Fewer guest ${name}`}
+                        >−</button>
+                        <span className="guest-stepper-val">{count}</span>
+                        <button
+                          type="button"
+                          className="guest-stepper-btn"
+                          disabled={!canEditChecklist || isFinalized || isFuture || pending}
+                          onClick={() => updateGuestCount(guestHost.id, guestDay, slot, count + 1)}
+                          aria-label={`More guest ${name}`}
+                        >+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {guestDay && (
+              <div className="guest-daily-totals">
+                <div className="guest-daily-totals__label">
+                  Daily totals · {SHORT_MONTHS[Number(guestDay.slice(5, 7)) - 1]} {Number(guestDay.slice(8))}
+                </div>
+                <div className="guest-daily-totals__grid">
+                  {activeMembers.map((m, i) => {
+                    const total = getMemberDayCount(m.id, guestDay);
+                    const guestOnly = getDailyMealTotals(
+                      m.id,
+                      guestDay,
+                      records,
+                      guestRecords,
+                      slots,
+                      slotOptInMatrix,
+                    ).guest;
+                    return (
+                      <div key={m.id} className={`guest-daily-total${total > 0 ? ' guest-daily-total--has' : ''}`}>
+                        <Avatar name={m.name} photoUrl={m.photoUrl} index={i} size="sm" />
+                        <span className="guest-daily-total__count">{total}</span>
+                        {guestOnly > 0 && (
+                          <span className="guest-daily-total__guest">+{guestOnly} guest</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid-2" style={{ marginBottom: 24 }}>
@@ -513,7 +826,9 @@ export default function MealsPage() {
                     <div className="meal-summary-member__info">
                       <div className="meal-summary-member__name">{m.name}</div>
                       <div className="meal-summary-member__meta">
-                        {s.mealCount} meals · contributed {fmt(s.shoppingContribution)}
+                        {s.mealCount} meals
+                        {(s.guestMealCount ?? 0) > 0 && ` · ${s.guestMealCount} guest`}
+                        {' · '}contributed {fmt(s.shoppingContribution)}
                         {(s.foodContribution > 0 || s.mealShoppingContribution > 0) && (
                           <span className="meal-summary-member__contrib">
                             ({s.foodContribution > 0 ? `food ${fmt(s.foodContribution)}` : ''}

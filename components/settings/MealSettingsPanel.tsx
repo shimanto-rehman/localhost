@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/ToastProvider';
+import {
+  GUEST_MEAL_MODE_DESCRIPTIONS,
+  GUEST_MEAL_MODE_LABELS,
+  GUEST_MEAL_MODES,
+  type GuestMealMode,
+} from '@/lib/constants';
 
 const MEAL_PRESETS = [
   ['Breakfast', 'Lunch', 'Dinner'],
@@ -110,11 +116,23 @@ function IconRate() {
   );
 }
 
+function IconGuests() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
 type MealConfigState = {
   mealsPerDay: number;
   mealNames: string[];
   weekStartDay: number;
   rateOverride: string;
+  guestMealMode: GuestMealMode;
 };
 
 export function MealSettingsPanel({
@@ -127,6 +145,7 @@ export function MealSettingsPanel({
     mealNames: string[];
     weekStartDay: number;
     rateOverride?: number | null;
+    guestMealMode?: GuestMealMode;
   };
   canEdit: boolean;
   onSaved: () => Promise<void>;
@@ -138,6 +157,7 @@ export function MealSettingsPanel({
     mealNames: ['Lunch', 'Dinner'],
     weekStartDay: 6,
     rateOverride: '',
+    guestMealMode: 'EQUAL_SPLIT',
   });
 
   useEffect(() => {
@@ -147,6 +167,7 @@ export function MealSettingsPanel({
       mealNames: [...mealConfig.mealNames],
       weekStartDay: mealConfig.weekStartDay,
       rateOverride: mealConfig.rateOverride != null ? String(mealConfig.rateOverride) : '',
+      guestMealMode: mealConfig.guestMealMode ?? 'EQUAL_SPLIT',
     });
   }, [mealConfig]);
 
@@ -201,6 +222,7 @@ export function MealSettingsPanel({
           mealNames: trimmed,
           weekStartDay: state.weekStartDay,
           rateOverride: state.rateOverride.trim() ? Number(state.rateOverride) : null,
+          guestMealMode: state.guestMealMode,
         }),
       });
       if (!res.ok) {
@@ -340,6 +362,39 @@ export function MealSettingsPanel({
           <p className="meal-option-card__hint">
             Empty = Food expenses + shopping ÷ confirmed meals
           </p>
+        </div>
+
+        <div className="meal-option-card meal-option-card--wide">
+          <div className="meal-option-card__top">
+            <span className="meal-option-card__icon meal-option-card__icon--teal">
+              <IconGuests />
+            </span>
+            <div>
+              <div className="meal-option-card__title">Guest meal calculation</div>
+              <div className="meal-option-card__sub">How guest meal costs are shared</div>
+            </div>
+          </div>
+          <div className="guest-mode-options">
+            {GUEST_MEAL_MODES.map((mode) => (
+              <label
+                key={mode}
+                className={`guest-mode-option${state.guestMealMode === mode ? ' guest-mode-option--active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="guestMealMode"
+                  value={mode}
+                  disabled={!canEdit}
+                  checked={state.guestMealMode === mode}
+                  onChange={() => setState({ ...state, guestMealMode: mode })}
+                />
+                <span className="guest-mode-option__body">
+                  <span className="guest-mode-option__title">{GUEST_MEAL_MODE_LABELS[mode]}</span>
+                  <span className="guest-mode-option__desc">{GUEST_MEAL_MODE_DESCRIPTIONS[mode]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 

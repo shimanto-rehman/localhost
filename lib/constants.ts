@@ -61,5 +61,19 @@ export type MfsWalletType = typeof MFS_WALLET_TYPES[number];
 /** Expense categories that count toward the automatic meal cost pool (when no fixed rate). */
 export const MEAL_POOL_EXPENSE_CATEGORIES = ['Food'] as const;
 export const SITE_NAME = 'LocalHost';
+
+/** How guest meal costs are allocated across members. */
+export const GUEST_MEAL_MODES = ['EQUAL_SPLIT', 'HOST_PAYS'] as const;
+export type GuestMealMode = (typeof GUEST_MEAL_MODES)[number];
+
+export const GUEST_MEAL_MODE_LABELS: Record<GuestMealMode, string> = {
+  EQUAL_SPLIT: 'Split equally',
+  HOST_PAYS: 'Host pays',
+};
+
+export const GUEST_MEAL_MODE_DESCRIPTIONS: Record<GuestMealMode, string> = {
+  EQUAL_SPLIT: 'Guest meal cost is shared equally among all members.',
+  HOST_PAYS: 'Only the member who brought the guest pays for those meals.',
+};
 export const SITE_DESCRIPTION =
   'Smart apartment bill splitter for flatmates in Bangladesh. Split rent, utilities, meals, and personal expenses fairly with LocalHost.';

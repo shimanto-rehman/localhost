@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         mealNames: ['Breakfast', 'Lunch', 'Evening Snacks', 'Dinner'],
         weekStartDay: 6,
         rateOverride: null,
+        guestMealMode: 'EQUAL_SPLIT',
       },
     );
   } catch (err) {
@@ -51,12 +52,14 @@ export async function PATCH(req: NextRequest) {
         mealNames: d.mealNames,
         weekStartDay: d.weekStartDay,
         rateOverride: d.rateOverride ?? null,
+        guestMealMode: d.guestMealMode ?? 'EQUAL_SPLIT',
       },
       update: {
         mealsPerDay: d.mealsPerDay,
         mealNames: d.mealNames,
         weekStartDay: d.weekStartDay,
         rateOverride: d.rateOverride ?? null,
+        ...(d.guestMealMode !== undefined ? { guestMealMode: d.guestMealMode } : {}),
       },
     });
 

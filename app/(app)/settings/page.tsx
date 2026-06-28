@@ -119,6 +119,7 @@ export default function SettingsPage() {
     mealNames: string[];
     weekStartDay: number;
     rateOverride?: number | null;
+    guestMealMode?: 'EQUAL_SPLIT' | 'HOST_PAYS';
   } | undefined;
   const mealSlotOptInMatrix = (config?.mealSlotOptInMatrix as MealSlotOptInMatrix) || {};
   const rolePermissions = config?.rolePermissions as RolePermissionsConfig | undefined;

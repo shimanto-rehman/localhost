@@ -1,8 +1,17 @@
+import type { GuestMealMode } from '@/lib/constants';
+
 export interface MealRecord {
   memberId: string;
   mealDate: string;
   mealSlot: number;
   isConfirmed: boolean;
+}
+
+export interface GuestMealRecord {
+  memberId: string;
+  mealDate: string;
+  mealSlot: number;
+  guestCount: number;
 }
 
 export interface ShoppingEntry {
@@ -13,11 +22,13 @@ export interface ShoppingEntry {
 export interface MealMemberSummary {
   memberId: string;
   mealCount: number;
+  guestMealCount: number;
   /** Total paid toward the pool (Food expenses + meal shopping entries). */
   shoppingContribution: number;
   foodContribution: number;
   mealShoppingContribution: number;
   mealCostDue: number;
+  guestMealCost: number;
   net: number;
   mealCountBySlot?: Record<number, number>;
 }
@@ -38,6 +49,68 @@ export function isMealSlotOptedIn(
   return memberSlots[mealSlot] !== false;
 }
 
+/** True when a member meal counts as confirmed (explicit record or implicit today default). */
+export function isMealConfirmed(
+  records: MealRecord[],
+  memberId: string,
+  mealDate: string,
+  mealSlot: number,
+  slotOptInMatrix?: MealSlotOptInMatrix,
+  todayStr?: string,
+): boolean {
+  if (!isMealSlotOptedIn(slotOptInMatrix, memberId, mealSlot)) return false;
+  const date = mealDate.slice(0, 10);
+  const rec = records.find(
+    (r) =>
+      r.memberId === memberId &&
+      r.mealDate.slice(0, 10) === date &&
+      r.mealSlot === mealSlot,
+  );
+  if (rec) return rec.isConfirmed;
+  const today = todayStr ?? new Date().toISOString().slice(0, 10);
+  return date === today;
+}
+
+export type MealCostOptions = {
+  monthKey?: string;
+  mealsPerDay?: number;
+  todayStr?: string;
+};
+
+function addImplicitTodayMeals(
+  records: MealRecord[],
+  slotOptInMatrix: MealSlotOptInMatrix | undefined,
+  activeMemberIds: string[],
+  mealsPerDay: number,
+  monthKey: string | undefined,
+  todayStr: string | undefined,
+  mealCountByMember: Record<string, number>,
+  mealCountByMemberSlot: Record<string, Record<number, number>>,
+): number {
+  const today = todayStr ?? new Date().toISOString().slice(0, 10);
+  if (monthKey && !today.startsWith(monthKey)) return 0;
+
+  let added = 0;
+  for (const memberId of activeMemberIds) {
+    for (let slot = 0; slot < mealsPerDay; slot++) {
+      if (!isMealSlotOptedIn(slotOptInMatrix, memberId, slot)) continue;
+      const hasRecord = records.some(
+        (r) =>
+          r.memberId === memberId &&
+          r.mealDate.slice(0, 10) === today &&
+          r.mealSlot === slot,
+      );
+      if (hasRecord) continue;
+      mealCountByMember[memberId] = (mealCountByMember[memberId] || 0) + 1;
+      if (!mealCountByMemberSlot[memberId]) mealCountByMemberSlot[memberId] = {};
+      mealCountByMemberSlot[memberId][slot] =
+        (mealCountByMemberSlot[memberId][slot] || 0) + 1;
+      added++;
+    }
+  }
+  return added;
+}
+
 export function filterEligibleMealRecords(
   records: MealRecord[],
   slotOptInMatrix?: MealSlotOptInMatrix,
@@ -52,13 +125,19 @@ export function calculateMealCosts(
   rateOverride?: number | null,
   slotOptInMatrix?: MealSlotOptInMatrix,
   foodExpenses?: ShoppingEntry[],
+  guestRecords: GuestMealRecord[] = [],
+  guestMealMode: GuestMealMode = 'EQUAL_SPLIT',
+  activeMemberIds: string[] = [],
+  options?: MealCostOptions,
 ): {
   totalShoppingPool: number;
   foodExpensePool: number;
   shoppingPool: number;
   totalMealCount: number;
+  totalGuestMealCount: number;
   perMealCost: number;
   rateMode: MealRateMode;
+  guestMealMode: GuestMealMode;
   memberSummaries: MealMemberSummary[];
   mealSurplus: number;
   memberMealCosts: Record<string, number>;
@@ -69,7 +148,38 @@ export function calculateMealCosts(
   const autoPool = foodExpensePool + shoppingPool;
 
   const confirmed = eligibleRecords.filter((r) => r.isConfirmed);
-  const totalMealCount = confirmed.length;
+  const totalGuestMealCount = guestRecords.reduce((s, g) => s + Math.max(0, g.guestCount), 0);
+
+  const mealCountByMember: Record<string, number> = {};
+  const mealCountByMemberSlot: Record<string, Record<number, number>> = {};
+  const guestCountByMember: Record<string, number> = {};
+  const foodByMember: Record<string, number> = {};
+  const shoppingByMember: Record<string, number> = {};
+
+  confirmed.forEach((r) => {
+    mealCountByMember[r.memberId] = (mealCountByMember[r.memberId] || 0) + 1;
+    if (!mealCountByMemberSlot[r.memberId]) mealCountByMemberSlot[r.memberId] = {};
+    mealCountByMemberSlot[r.memberId][r.mealSlot] =
+      (mealCountByMemberSlot[r.memberId][r.mealSlot] || 0) + 1;
+  });
+
+  const implicitTodayCount = addImplicitTodayMeals(
+    eligibleRecords,
+    slotOptInMatrix,
+    activeMemberIds,
+    options?.mealsPerDay ?? 2,
+    options?.monthKey,
+    options?.todayStr,
+    mealCountByMember,
+    mealCountByMemberSlot,
+  );
+
+  const totalMealCount = confirmed.length + implicitTodayCount + totalGuestMealCount;
+
+  guestRecords.forEach((g) => {
+    if (g.guestCount <= 0) return;
+    guestCountByMember[g.memberId] = (guestCountByMember[g.memberId] || 0) + g.guestCount;
+  });
 
   const rateMode: MealRateMode = rateOverride != null ? 'fixed' : 'auto';
   const perMealCost =
@@ -81,18 +191,6 @@ export function calculateMealCosts(
 
   const totalShoppingPool = autoPool;
 
-  const mealCountByMember: Record<string, number> = {};
-  const mealCountByMemberSlot: Record<string, Record<number, number>> = {};
-  const foodByMember: Record<string, number> = {};
-  const shoppingByMember: Record<string, number> = {};
-
-  confirmed.forEach((r) => {
-    mealCountByMember[r.memberId] = (mealCountByMember[r.memberId] || 0) + 1;
-    if (!mealCountByMemberSlot[r.memberId]) mealCountByMemberSlot[r.memberId] = {};
-    mealCountByMemberSlot[r.memberId][r.mealSlot] =
-      (mealCountByMemberSlot[r.memberId][r.mealSlot] || 0) + 1;
-  });
-
   (foodExpenses ?? []).forEach((e) => {
     foodByMember[e.memberId] = (foodByMember[e.memberId] || 0) + e.amount;
   });
@@ -101,32 +199,55 @@ export function calculateMealCosts(
     shoppingByMember[s.memberId] = (shoppingByMember[s.memberId] || 0) + s.amount;
   });
 
-  const allMemberIds = new Set([
-    ...Object.keys(mealCountByMember),
-    ...Object.keys(foodByMember),
-    ...Object.keys(shoppingByMember),
-    ...(foodExpenses ?? []).map((e) => e.memberId),
-    ...shopping.map((s) => s.memberId),
-    ...confirmed.map((r) => r.memberId),
-  ]);
+  const splitMemberIds =
+    activeMemberIds.length > 0
+      ? activeMemberIds
+      : Array.from(
+          new Set([
+            ...Object.keys(mealCountByMember),
+            ...Object.keys(guestCountByMember),
+            ...Object.keys(foodByMember),
+            ...Object.keys(shoppingByMember),
+            ...(foodExpenses ?? []).map((e) => e.memberId),
+            ...shopping.map((s) => s.memberId),
+            ...confirmed.map((r) => r.memberId),
+          ]),
+        );
+
+  const totalGuestCost = guestRecords.reduce(
+    (s, g) => s + Math.ceil(perMealCost * Math.max(0, g.guestCount)),
+    0,
+  );
+  const guestSharePerMember =
+    guestMealMode === 'EQUAL_SPLIT' && splitMemberIds.length > 0
+      ? Math.ceil(totalGuestCost / splitMemberIds.length)
+      : 0;
 
   const memberMealCosts: Record<string, number> = {};
   const memberSummaries: MealMemberSummary[] = [];
 
-  allMemberIds.forEach((memberId) => {
+  splitMemberIds.forEach((memberId) => {
     const mealCount = mealCountByMember[memberId] || 0;
+    const guestMealCount = guestCountByMember[memberId] || 0;
     const foodContribution = foodByMember[memberId] || 0;
     const mealShoppingContribution = shoppingByMember[memberId] || 0;
     const shoppingContribution = foodContribution + mealShoppingContribution;
-    const mealCostDue = Math.ceil(perMealCost * mealCount);
+    const ownMealCost = Math.ceil(perMealCost * mealCount);
+    const guestMealCost =
+      guestMealMode === 'HOST_PAYS'
+        ? Math.ceil(perMealCost * guestMealCount)
+        : guestSharePerMember;
+    const mealCostDue = ownMealCost + guestMealCost;
     memberMealCosts[memberId] = mealCostDue;
     memberSummaries.push({
       memberId,
       mealCount,
+      guestMealCount,
       shoppingContribution,
       foodContribution,
       mealShoppingContribution,
       mealCostDue,
+      guestMealCost,
       net: mealCostDue - shoppingContribution,
       mealCountBySlot: mealCountByMemberSlot[memberId] || {},
     });
@@ -140,8 +261,10 @@ export function calculateMealCosts(
     foodExpensePool,
     shoppingPool,
     totalMealCount,
+    totalGuestMealCount,
     perMealCost,
     rateMode,
+    guestMealMode,
     memberSummaries,
     mealSurplus,
     memberMealCosts,
@@ -207,4 +330,26 @@ export function getCurrentWeekIndex(monthKey: string, weekStartDay: number): num
     week.some((d) => d.toISOString().slice(0, 10) === todayStr),
   );
   return idx >= 0 ? idx : 0;
+}
+
+/** Confirmed member meals + guest meals for one calendar day. */
+export function getDailyMealTotals(
+  memberId: string,
+  mealDate: string,
+  records: MealRecord[],
+  guestRecords: GuestMealRecord[],
+  slots: number,
+  slotOptInMatrix?: MealSlotOptInMatrix,
+  todayStr?: string,
+): { own: number; guest: number; total: number } {
+  let own = 0;
+  for (let slot = 0; slot < slots; slot++) {
+    if (isMealConfirmed(records, memberId, mealDate, slot, slotOptInMatrix, todayStr)) {
+      own++;
+    }
+  }
+  const guest = guestRecords
+    .filter((g) => g.memberId === memberId && g.mealDate.startsWith(mealDate))
+    .reduce((s, g) => s + Math.max(0, g.guestCount), 0);
+  return { own, guest, total: own + guest };
 }
