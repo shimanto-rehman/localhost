@@ -1,11 +1,15 @@
--- CreateEnum
-CREATE TYPE "GuestMealMode" AS ENUM ('EQUAL_SPLIT', 'HOST_PAYS');
+-- Guest meals (idempotent: safe when schema was partially applied via db push)
 
--- AlterTable
-ALTER TABLE "meal_config" ADD COLUMN "guest_meal_mode" "GuestMealMode" NOT NULL DEFAULT 'EQUAL_SPLIT';
+DO $$ BEGIN
+  CREATE TYPE "GuestMealMode" AS ENUM ('EQUAL_SPLIT', 'HOST_PAYS');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateTable
-CREATE TABLE "guest_meal_records" (
+ALTER TABLE "meal_config"
+  ADD COLUMN IF NOT EXISTS "guest_meal_mode" "GuestMealMode" NOT NULL DEFAULT 'EQUAL_SPLIT';
+
+CREATE TABLE IF NOT EXISTS "guest_meal_records" (
     "id" UUID NOT NULL,
     "apartment_id" UUID NOT NULL,
     "member_id" UUID NOT NULL,
@@ -18,14 +22,26 @@ CREATE TABLE "guest_meal_records" (
     CONSTRAINT "guest_meal_records_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "guest_meal_records_apartment_id_meal_date_idx" ON "guest_meal_records"("apartment_id", "meal_date");
+CREATE INDEX IF NOT EXISTS "guest_meal_records_apartment_id_meal_date_idx"
+  ON "guest_meal_records"("apartment_id", "meal_date");
 
--- CreateIndex
-CREATE UNIQUE INDEX "guest_meal_records_apartment_id_member_id_meal_date_meal_s_key" ON "guest_meal_records"("apartment_id", "member_id", "meal_date", "meal_slot");
+CREATE UNIQUE INDEX IF NOT EXISTS "guest_meal_records_apartment_id_member_id_meal_date_meal_s_key"
+  ON "guest_meal_records"("apartment_id", "member_id", "meal_date", "meal_slot");
 
--- AddForeignKey
-ALTER TABLE "guest_meal_records" ADD CONSTRAINT "guest_meal_records_apartment_id_fkey" FOREIGN KEY ("apartment_id") REFERENCES "apartments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "guest_meal_records"
+    ADD CONSTRAINT "guest_meal_records_apartment_id_fkey"
+    FOREIGN KEY ("apartment_id") REFERENCES "apartments"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "guest_meal_records" ADD CONSTRAINT "guest_meal_records_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "guest_meal_records"
+    ADD CONSTRAINT "guest_meal_records_member_id_fkey"
+    FOREIGN KEY ("member_id") REFERENCES "members"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
