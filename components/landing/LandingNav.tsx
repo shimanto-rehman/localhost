@@ -19,7 +19,7 @@ export function LandingNav() {
           <a href="#features">Features</a>
           <a href="#how-it-works">How it works</a>
           <a href="#faq">FAQ</a>
-          <Link href="/guides/split-apartment-bills">Guides</Link>
+          <Link href="/guides">User guide</Link>
         </div>
         <div className="lp-nav__actions">
           <button

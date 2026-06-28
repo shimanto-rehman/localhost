@@ -281,7 +281,8 @@ export default function MealRateGuidePage() {
         </section>
 
         <nav className="guide__nav">
-          <Link href="/">← Back to LocalHost</Link>
+          <Link href="/guides">← Full user guide</Link>
+          <Link href="/">Back to LocalHost</Link>
           <Link href="/guides/split-apartment-bills">How to split apartment bills →</Link>
         </nav>
       </article>

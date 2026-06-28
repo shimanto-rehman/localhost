@@ -517,7 +517,8 @@ export default function LandingPage() {
             <div className="lp-section-head">
               <h2 className="lp-section-title">Frequently asked questions</h2>
               <p className="lp-section-sub">
-                Also see: <Link href="/guides/split-apartment-bills">How to split apartment bills</Link> ·{' '}
+                Also see: <Link href="/guides">Full user guide</Link> ·{' '}
+                <Link href="/guides/split-apartment-bills">How to split apartment bills</Link> ·{' '}
                 <Link href="/guides/bn/split-apartment-bills">বাংলায় পড়ুন</Link> ·{' '}
                 <Link href="/guides/meal-rate">Meal rate calculator guide</Link>
               </p>
@@ -562,6 +563,7 @@ export default function LandingPage() {
               <span>LocalHost</span>
             </div>
             <div className="lp-footer__links">
+              <Link href="/guides">User guide</Link>
               <Link href="/guides/split-apartment-bills">How to split bills</Link>
               <Link href="/guides/bn/split-apartment-bills">বিল ভাগ করার নিয়ম</Link>
               <Link href="/guides/meal-rate">Meal rate guide</Link>

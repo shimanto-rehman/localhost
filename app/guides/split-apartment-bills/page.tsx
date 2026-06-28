@@ -128,6 +128,12 @@ export default function SplitBillsGuide() {
         <p><strong>{SITE_NAME}</strong> does all of this automatically — free for any apartment.</p>
         <Link href="/">Start splitting bills fairly</Link>
       </div>
+
+      <nav className="guide__nav">
+        <Link href="/guides">← Full user guide</Link>
+        <Link href="/">Back to home</Link>
+        <Link href="/guides/meal-rate">Meal rate guide →</Link>
+      </nav>
     </main>
   );
 }
