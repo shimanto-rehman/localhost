@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag, revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { isValidMonthKey } from '@/lib/utils';
-import { getBillCalculation } from '@/lib/bill-calculation';
+import { getBillCalculation, billCalcCacheTag } from '@/lib/bill-calculation';
 import {
   requireAptSession,
   requireMemberSession,
@@ -131,6 +132,53 @@ export async function POST(req: NextRequest, { params }: Params) {
     const monthDate = parseMonthKey(monthKey);
     const monthName = `${MONTH_NAMES[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
     const balance = amountDue - amountPaid;
+
+    // Clean up carry-over "Due" adjustment in the next month when paid/partial.
+    const dueLabel = `Due · ${MONTH_NAMES[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+    const nextMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+    const nextMonthKey = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    if (status === 'paid' || status === 'partial') {
+      const nextBill = await prisma.monthlyBill.findUnique({
+        where: { apartmentId_monthKey: { apartmentId: apt.apartmentId, monthKey: nextMonthKey } },
+      });
+      if (nextBill) {
+        let adjusted = false;
+        if (status === 'paid') {
+          // Fully paid — remove the due adjustment entirely.
+          const { count } = await prisma.billAdjustment.deleteMany({
+            where: { billId: nextBill.id, memberId: parsed.data.memberId, label: dueLabel },
+          });
+          adjusted = count > 0;
+        } else {
+          // Partial — update the due adjustment to the new remaining balance.
+          const existing = await prisma.billAdjustment.findFirst({
+            where: { billId: nextBill.id, memberId: parsed.data.memberId, label: dueLabel },
+          });
+          if (existing) {
+            if (balance > 0) {
+              await prisma.billAdjustment.update({
+                where: { id: existing.id },
+                data: { amount: balance },
+              });
+            } else {
+              await prisma.billAdjustment.delete({ where: { id: existing.id } });
+            }
+            adjusted = true;
+          } else if (balance > 0) {
+            await prisma.billAdjustment.create({
+              data: { billId: nextBill.id, memberId: parsed.data.memberId, type: 'lend', label: dueLabel, amount: balance },
+            });
+            adjusted = true;
+          }
+        }
+        // Bust the cached bill calculation so the next month reflects the change immediately.
+        if (adjusted) {
+          revalidateTag(billCalcCacheTag(apt.apartmentId, nextMonthKey));
+          revalidatePath(`/api/bills/${nextMonthKey}/calculation`);
+        }
+      }
+    }
 
     if (status === 'paid') {
       await createNotification({

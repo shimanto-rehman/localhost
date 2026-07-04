@@ -196,7 +196,7 @@ export function calculateBill(params: {
     };
   });
 
-  const collectedTotal = results.reduce((s, r) => s + r.total, 0);
+  const collectedTotal = results.reduce((s, r) => s + r.baseTotal, 0);
   const optionalTotal = optionalCosts.reduce((s, c) => s + c.amount, 0);
   const variableTotal = variableCosts.reduce((s, c) => s + c.amount, 0);
   const outOfBucketTotal = outOfBucketFixed.reduce((s, c) => s + c.amount, 0);

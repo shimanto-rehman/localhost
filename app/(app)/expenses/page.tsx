@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { fmt, monthKey, monthLabel } from '@/lib/utils';
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_COLORS, MONTH_NAMES } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
 import { expenseKey } from '@/lib/api/cache-keys';
@@ -213,13 +214,17 @@ export default function ExpensesPage() {
                             onKeyDown={(e) => { if (e.key === 'Enter') addExpense(r.id); }}
                           />
                           <div className="expense-form__row">
-                            <select
-                              className="form-input expense-form__category"
+                            <SearchableSelect
+                              className="expense-form__category"
+                              options={EXPENSE_CATEGORIES.map((c) => ({
+                                value: c,
+                                label: c,
+                                color: EXPENSE_CATEGORY_COLORS[c],
+                              }))}
                               value={f.category}
-                              onChange={(e) => setForm(r.id, { category: e.target.value })}
-                            >
-                              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                              onChange={(val) => setForm(r.id, { category: val })}
+                              placeholder="Category"
+                            />
                             <input
                               className="form-input expense-form__price"
                               type="number"

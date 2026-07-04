@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 import { getApartmentConfig } from './apartment-data';
 import { calculateBill } from './calculations/bills';
 import { ceilPerHead } from './utils';
+import { MONTH_NAMES } from './constants';
 
 export function billCalcCacheTag(apartmentId: string, monthKey: string) {
   return `bill-calc-${apartmentId}-${monthKey}`;
@@ -23,8 +24,50 @@ async function computeBillCalculation(apartmentId: string, monthKey: string) {
   const snapshot = bill?.snapshot as Record<string, unknown> | null;
   const mealCosts = (snapshot?.mealCosts as Record<string, number>) || {};
 
+  // Filter out "Due" adjustments whose source-month bill is already paid by that member.
+  const DUE_PREFIX = 'Due · ';
+  const dueSourceMonths = new Set<string>();
+  (bill?.adjustments || []).forEach((a) => {
+    if (a.label.startsWith(DUE_PREFIX)) {
+      const parts = a.label.slice(DUE_PREFIX.length).trim().split(' ');
+      if (parts.length === 2) {
+        const monthIdx = MONTH_NAMES.indexOf(parts[0]);
+        if (monthIdx >= 0) {
+          dueSourceMonths.add(`${parts[1]}-${String(monthIdx + 1).padStart(2, '0')}`);
+        }
+      }
+    }
+  });
+
+  // Map: "monthKey:memberId" → true if that member's payment is paid/settled.
+  const paidMemberMonths = new Map<string, boolean>();
+  if (dueSourceMonths.size > 0) {
+    const sourceBills = await prisma.monthlyBill.findMany({
+      where: { apartmentId, monthKey: { in: Array.from(dueSourceMonths) } },
+      include: { memberPayments: true },
+    });
+    sourceBills.forEach((sb) => {
+      sb.memberPayments.forEach((p) => {
+        if (p.status === 'paid' || p.amountDue - p.amountPaid <= 0) {
+          paidMemberMonths.set(`${sb.monthKey}:${p.memberId}`, true);
+        }
+      });
+    });
+  }
+
   const adjustmentsByMember: Record<string, NonNullable<typeof bill>['adjustments']> = {};
   (bill?.adjustments || []).forEach((a) => {
+    // Skip "Due" adjustments whose source-month bill is already paid by this member.
+    if (a.label.startsWith(DUE_PREFIX)) {
+      const parts = a.label.slice(DUE_PREFIX.length).trim().split(' ');
+      if (parts.length === 2) {
+        const monthIdx = MONTH_NAMES.indexOf(parts[0]);
+        if (monthIdx >= 0) {
+          const sourceKey = `${parts[1]}-${String(monthIdx + 1).padStart(2, '0')}`;
+          if (paidMemberMonths.has(`${sourceKey}:${a.memberId}`)) return;
+        }
+      }
+    }
     if (!adjustmentsByMember[a.memberId]) adjustmentsByMember[a.memberId] = [];
     adjustmentsByMember[a.memberId].push(a);
   });
@@ -90,7 +133,7 @@ export async function getBillCalculation(apartmentId: string, monthKey: string) 
       async () => computeBillCalculation(apartmentId, monthKey),
       ['bill-calculation', apartmentId, monthKey],
       {
-        revalidate: 86400,
+        revalidate: 300,
         tags: [billCalcCacheTag(apartmentId, monthKey)],
       },
     )();
