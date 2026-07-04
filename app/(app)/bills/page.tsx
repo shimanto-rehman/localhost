@@ -363,16 +363,14 @@ export default function BillsPage() {
                             </div>
                           </div>
 
-                          {!isManagerCard && (
-                            <BillPaymentControls
-                              monthKey={mk}
-                              memberId={r.id}
-                              total={r.total}
-                              payment={paymentsByMember.get(r.id)}
-                              canEdit={canMarkPayments}
-                              onUpdated={load}
-                            />
-                          )}
+                          <BillPaymentControls
+                            monthKey={mk}
+                            memberId={r.id}
+                            total={r.total}
+                            payment={paymentsByMember.get(r.id)}
+                            canEdit={canMarkPayments}
+                            onUpdated={load}
+                          />
 
                           {!isManagerCard && (r.adjustments?.length > 0 || canAdjust) && (
                             <div className="adj-panel" data-member={r.id}>
