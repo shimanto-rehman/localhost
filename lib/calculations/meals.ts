@@ -49,7 +49,11 @@ export function isMealSlotOptedIn(
   return memberSlots[mealSlot] !== false;
 }
 
-/** True when a member meal counts as confirmed (explicit record or implicit today default). */
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** True when a member meal counts as confirmed (explicit record or implicit auto-confirm for today/past). */
 export function isMealConfirmed(
   records: MealRecord[],
   memberId: string,
@@ -67,8 +71,8 @@ export function isMealConfirmed(
       r.mealSlot === mealSlot,
   );
   if (rec) return rec.isConfirmed;
-  const today = todayStr ?? new Date().toISOString().slice(0, 10);
-  return date === today;
+  const today = todayStr ?? localDateStr(new Date());
+  return date <= today;
 }
 
 export type MealCostOptions = {
@@ -87,26 +91,45 @@ function addImplicitTodayMeals(
   mealCountByMember: Record<string, number>,
   mealCountByMemberSlot: Record<string, Record<number, number>>,
 ): number {
-  const today = todayStr ?? new Date().toISOString().slice(0, 10);
-  if (monthKey && !today.startsWith(monthKey)) return 0;
+  const today = todayStr ?? localDateStr(new Date());
+  const effectiveMonth = monthKey ?? today.slice(0, 7);
+  const [y, m] = effectiveMonth.split('-').map(Number);
+  const startDate = new Date(y, m - 1, 1);
+  const lastDay = new Date(y, m, 0).getDate();
+
+  // Past months: count all days. Current month: through today. Future months: skip.
+  let endDay: number;
+  if (today < effectiveMonth) return 0; // future month
+  if (today.startsWith(effectiveMonth)) {
+    endDay = Number(today.slice(8)); // current month: through today
+  } else {
+    endDay = lastDay; // past month: all days
+  }
+
+  const endDate = new Date(y, m - 1, endDay);
 
   let added = 0;
-  for (const memberId of activeMemberIds) {
-    for (let slot = 0; slot < mealsPerDay; slot++) {
-      if (!isMealSlotOptedIn(slotOptInMatrix, memberId, slot)) continue;
-      const hasRecord = records.some(
-        (r) =>
-          r.memberId === memberId &&
-          r.mealDate.slice(0, 10) === today &&
-          r.mealSlot === slot,
-      );
-      if (hasRecord) continue;
-      mealCountByMember[memberId] = (mealCountByMember[memberId] || 0) + 1;
-      if (!mealCountByMemberSlot[memberId]) mealCountByMemberSlot[memberId] = {};
-      mealCountByMemberSlot[memberId][slot] =
-        (mealCountByMemberSlot[memberId][slot] || 0) + 1;
-      added++;
+  const d = new Date(startDate);
+  while (d <= endDate) {
+    const dateStr = localDateStr(d);
+    for (const memberId of activeMemberIds) {
+      for (let slot = 0; slot < mealsPerDay; slot++) {
+        if (!isMealSlotOptedIn(slotOptInMatrix, memberId, slot)) continue;
+        const hasRecord = records.some(
+          (r) =>
+            r.memberId === memberId &&
+            r.mealDate.slice(0, 10) === dateStr &&
+            r.mealSlot === slot,
+        );
+        if (hasRecord) continue;
+        mealCountByMember[memberId] = (mealCountByMember[memberId] || 0) + 1;
+        if (!mealCountByMemberSlot[memberId]) mealCountByMemberSlot[memberId] = {};
+        mealCountByMemberSlot[memberId][slot] =
+          (mealCountByMemberSlot[memberId][slot] || 0) + 1;
+        added++;
+      }
     }
+    d.setDate(d.getDate() + 1);
   }
   return added;
 }
@@ -325,9 +348,9 @@ export function getCurrentWeekIndex(monthKey: string, weekStartDay: number): num
   if (today.getFullYear() !== year || today.getMonth() !== month - 1) {
     return 0;
   }
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = localDateStr(today);
   const idx = weeks.findIndex((week) =>
-    week.some((d) => d.toISOString().slice(0, 10) === todayStr),
+    week.some((d) => localDateStr(d) === todayStr),
   );
   return idx >= 0 ? idx : 0;
 }

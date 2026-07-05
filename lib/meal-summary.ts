@@ -49,26 +49,36 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
   const guestMealMode = (mealConfig?.guestMealMode ?? 'EQUAL_SPLIT') as GuestMealMode;
 
   return {
-    records: records.map((r) => ({
-      memberId: r.memberId,
-      mealDate: r.mealDate.toISOString().slice(0, 10),
-      mealSlot: r.mealSlot,
-      isConfirmed: r.isConfirmed,
-    })),
+    records: records.map((r) => {
+      const d = r.mealDate;
+      return {
+        memberId: r.memberId,
+        mealDate: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        mealSlot: r.mealSlot,
+        isConfirmed: r.isConfirmed,
+      };
+    }),
     shopping: shopping.map((s) => ({ memberId: s.memberId, amount: s.amount })),
     foodExpenses: foodExpenseRows.map((e) => ({ memberId: e.memberId, amount: e.price })),
-    guestRecords: guestRecords.map((g) => ({
-      memberId: g.memberId,
-      mealDate: g.mealDate.toISOString().slice(0, 10),
-      mealSlot: g.mealSlot,
-      guestCount: g.guestCount,
-    })),
+    guestRecords: guestRecords.map((g) => {
+      const d = g.mealDate;
+      return {
+        memberId: g.memberId,
+        mealDate: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        mealSlot: g.mealSlot,
+        guestCount: g.guestCount,
+      };
+    }),
     rateOverride: mealConfig?.rateOverride,
     slotOptInMatrix,
     guestMealMode,
     activeMemberIds: activeMembers.map((m) => m.id),
     mealConfig,
   };
+}
+
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export async function getMealSummary(apartmentId: string, monthKey: string) {
@@ -85,6 +95,7 @@ export async function getMealSummary(apartmentId: string, monthKey: string) {
     {
       monthKey,
       mealsPerDay: inputs.mealConfig?.mealsPerDay ?? 2,
+      todayStr: localDateStr(new Date()),
     },
   );
 }

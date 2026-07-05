@@ -15,6 +15,8 @@ import {
   sanitizeText,
   validateApartmentPassword,
 } from '@/lib/sanitize';
+import { ValidatedInput } from '@/components/ui/ValidatedInput';
+import { useFieldValidation } from '@/lib/hooks/useFieldValidation';
 
 const StableAmbient = memo(Ambient);
 
@@ -147,6 +149,11 @@ export function AuthLanding() {
   const [registerValues, setRegisterValues] = useState<Record<string, string>>({});
   const [signinValues, setSigninValues] = useState<Record<string, string>>({});
   const [phoneValue, setPhoneValue] = useState('');
+
+  // Instant validation hooks
+  const aptValidation = useFieldValidation('apartment', signinValues.identifier || '', tab === 'signin' && signinView === 'login');
+  const phoneValidation = useFieldValidation('phone', phoneValue, tab === 'register' && phoneValue.length > 0);
+  const emailValidation = useFieldValidation('email', registerValues.registrant_email || '', tab === 'register' && (registerValues.registrant_email || '').includes('@'));
 
   const setFieldError = useCallback((field: string, message?: string) => {
     setErrors((prev) => {
@@ -431,13 +438,23 @@ export function AuthLanding() {
                         required
                         placeholder="e.g. APT-2026-XXXXX"
                         error={errors.identifier}
-                        value={signinValues.identifier}
-                        onChange={(e) => {
-                          setSigninValues((p) => ({ ...p, identifier: e.target.value }));
-                          if (errors.identifier) setFieldError('identifier', validateSignInField('identifier', e.target.value));
-                        }}
-                        onBlur={(e) => setFieldError('identifier', validateSignInField('identifier', e.target.value))}
-                      />
+                      >
+                        <ValidatedInput
+                          id="identifier"
+                          name="identifier"
+                          type="text"
+                          required
+                          placeholder="e.g. APT-2026-XXXXX"
+                          autoComplete="username"
+                          validationStatus={aptValidation}
+                          value={signinValues.identifier}
+                          onChange={(e) => {
+                            setSigninValues((p) => ({ ...p, identifier: e.target.value }));
+                            if (errors.identifier) setFieldError('identifier', validateSignInField('identifier', e.target.value));
+                          }}
+                          onBlur={(e) => setFieldError('identifier', validateSignInField('identifier', e.target.value))}
+                        />
+                      </AuthField>
                       <AuthField
                         label="Apartment Password"
                         name="password"
@@ -549,6 +566,21 @@ export function AuthLanding() {
                               error={errors.registrant_phone}
                               onChange={handlePhoneChange}
                             />
+                            {phoneValidation === 'valid' && (
+                              <span className="validated-inline validated-inline--valid">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                Available
+                              </span>
+                            )}
+                            {phoneValidation === 'invalid' && (
+                              <span className="validated-inline validated-inline--invalid">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                Already registered
+                              </span>
+                            )}
+                            {phoneValidation === 'checking' && (
+                              <span className="validated-inline validated-inline--checking">Checking…</span>
+                            )}
                           </AuthField>
                           <AuthField
                             label="Email *"
@@ -557,9 +589,20 @@ export function AuthLanding() {
                             required
                             fullWidth
                             error={errors.registrant_email}
-                            onChange={handleRegisterChange('registrant_email')}
-                            onBlur={handleRegisterBlur('registrant_email')}
-                          />
+                          >
+                            <ValidatedInput
+                              id="registrant_email"
+                              name="registrant_email"
+                              type="email"
+                              required
+                              placeholder="you@example.com"
+                              autoComplete="email"
+                              validationStatus={emailValidation}
+                              value={registerValues.registrant_email || ''}
+                              onChange={handleRegisterChange('registrant_email')}
+                              onBlur={handleRegisterBlur('registrant_email')}
+                            />
+                          </AuthField>
                           <AuthField label="Accommodation Type" name="apt_type">
                             <select className="form-input" id="apt_type" name="apt_type" defaultValue="">
                               <option value="">Select type…</option>

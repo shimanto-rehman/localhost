@@ -130,8 +130,9 @@ export default function MealsPage() {
 
   const toggleMeal = async (memberId: string, mealDate: string, mealSlot: number, current: boolean) => {
     if (!canEditChecklist || isFinalized) return;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (mealDate > todayStr) return;
+    const n = new Date();
+    const todayLocal = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    if (mealDate < todayLocal && !currentMember?.isAdmin) return; // past days locked for non-admins
 
     const nextConfirmed = !current;
 
@@ -275,7 +276,8 @@ export default function MealsPage() {
     member: { name: string; photoUrl?: string | null };
   }[]) || [];
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentMonthStr = `${year}-${String(monthNum).padStart(2, '0')}`;
   const activeMembers = members.filter((m) => m.isActive !== false);
   const guestMealMode = (mealConfig?.guestMealMode ?? summary?.guestMealMode ?? 'EQUAL_SPLIT') as GuestMealMode;
@@ -585,12 +587,13 @@ export default function MealsPage() {
                                   todayStr,
                                 );
                                 const label = (mealNames[slot] || 'M')[0].toUpperCase();
+                                const isPast = d < todayStr;
                                 return (
                                   <button
                                     key={slot}
                                     type="button"
                                     className={`meal-dot${confirmed ? ' meal-dot--on' : ''}${isFuture ? ' meal-dot--future' : ''}`}
-                                    disabled={!canEditChecklist || isFinalized || isFuture}
+                                    disabled={!canEditChecklist || isFinalized || (isPast && !currentMember?.isAdmin)}
                                     onClick={() => toggleMeal(m.id, d, slot, confirmed)}
                                     title={`${mealNames[slot]} · ${m.name} · ${d}`}
                                   >

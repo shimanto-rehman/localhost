@@ -27,12 +27,16 @@ const guestSelect = {
   guestCount: true,
 } as const;
 
+function dateToDayStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function serializeRecord<T extends { mealDate: Date }>(
   row: T,
 ): Omit<T, 'mealDate'> & { mealDate: string } {
   return {
     ...row,
-    mealDate: row.mealDate.toISOString().slice(0, 10),
+    mealDate: dateToDayStr(row.mealDate),
   };
 }
 
@@ -78,7 +82,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     return jsonOk({
       weekIndex,
-      weekDates: weekDates.map((d) => d.toISOString().slice(0, 10)),
+      weekDates: weekDates.map(dateToDayStr),
       totalWeeks: weeks.length,
       records: records.map(serializeRecord),
       guestRecords: guestRecords.map(serializeRecord),
