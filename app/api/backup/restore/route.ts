@@ -54,26 +54,28 @@ export async function POST(req: NextRequest) {
       }
 
       if (data.optionalCosts?.length) {
-        for (const oc of data.optionalCosts) {
-          await tx.optionalCost.create({
-            data: {
-              id: oc.id,
-              apartmentId,
-              name: oc.name,
-              amount: oc.amount,
-              sortOrder: oc.sortOrder,
-              isActive: oc.isActive ?? true,
-            },
-          });
-          if (oc.members?.length) {
-            await tx.optionalCostMember.createMany({
-              data: oc.members.map((m: { memberId: string; optedIn: boolean }) => ({
-                optionalCostId: oc.id,
-                memberId: m.memberId,
-                optedIn: m.optedIn,
-              })),
-            });
-          }
+        // Bulk create optional costs
+        await tx.optionalCost.createMany({
+          data: data.optionalCosts.map((oc: { id: string; name: string; amount: number; sortOrder: number; isActive?: boolean }) => ({
+            id: oc.id,
+            apartmentId,
+            name: oc.name,
+            amount: oc.amount,
+            sortOrder: oc.sortOrder,
+            isActive: oc.isActive ?? true,
+          })),
+        });
+
+        // Bulk create all optional cost members
+        const allMembers = data.optionalCosts.flatMap((oc: { id: string; members?: { memberId: string; optedIn: boolean }[] }) =>
+          (oc.members || []).map((m) => ({
+            optionalCostId: oc.id,
+            memberId: m.memberId,
+            optedIn: m.optedIn,
+          }))
+        );
+        if (allMembers.length > 0) {
+          await tx.optionalCostMember.createMany({ data: allMembers });
         }
       }
 

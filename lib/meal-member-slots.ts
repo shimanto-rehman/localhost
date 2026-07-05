@@ -23,18 +23,26 @@ export function buildMealSlotOptInMatrix(
   return matrix;
 }
 
-export async function loadMealSlotOptInMatrix(apartmentId: string, mealsPerDay: number) {
-  const [members, rows] = await Promise.all([
-    prisma.member.findMany({
-      where: { apartmentId, isActive: true },
-      select: { id: true },
-    }),
+export async function loadMealSlotOptInMatrix(
+  apartmentId: string,
+  mealsPerDay: number,
+  preloadedMemberIds?: string[],
+) {
+  const [memberIds, rows] = await Promise.all([
+    preloadedMemberIds
+      ? Promise.resolve(preloadedMemberIds)
+      : prisma.member
+          .findMany({
+            where: { apartmentId, isActive: true },
+            select: { id: true },
+          })
+          .then((m) => m.map((x) => x.id)),
     prisma.mealMemberSlot.findMany({
       where: { apartmentId },
     }),
   ]);
   return buildMealSlotOptInMatrix(
-    members.map((m) => m.id),
+    memberIds,
     mealsPerDay,
     rows.map((r) => ({
       memberId: r.memberId,

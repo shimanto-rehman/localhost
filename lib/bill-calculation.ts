@@ -127,8 +127,14 @@ async function computeBillCalculation(apartmentId: string, monthKey: string) {
 }
 
 export async function getBillCalculation(apartmentId: string, monthKey: string) {
-  const result = await computeBillCalculation(apartmentId, monthKey);
-  if (result?.bill?.isLocked) {
+  // First check if bill is locked with a lightweight query
+  const bill = await prisma.monthlyBill.findUnique({
+    where: { apartmentId_monthKey: { apartmentId, monthKey } },
+    select: { isLocked: true },
+  });
+
+  if (bill?.isLocked) {
+    // Use cache for locked bills
     return unstable_cache(
       async () => computeBillCalculation(apartmentId, monthKey),
       ['bill-calculation', apartmentId, monthKey],
@@ -138,5 +144,7 @@ export async function getBillCalculation(apartmentId: string, monthKey: string) 
       },
     )();
   }
-  return result;
+
+  // For unlocked bills, compute directly
+  return computeBillCalculation(apartmentId, monthKey);
 }

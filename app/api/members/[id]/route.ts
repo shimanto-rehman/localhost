@@ -33,24 +33,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
     if (!existing) return jsonError('Member not found', 404);
 
-    const member = await prisma.member.update({
-      where: { id },
-      data: {
-        name: d.name ?? existing.name,
-        photoUrl: d.photoUrl !== undefined ? (normalizeMemberPhotoUrl(d.photoUrl) ?? null) : existing.photoUrl,
-        email: d.email !== undefined ? (d.email || null) : existing.email,
-        phone: d.phone !== undefined ? (d.phone || null) : existing.phone,
-        nid: d.nid !== undefined ? (d.nid ? encrypt(d.nid) : null) : existing.nid,
-        hometown: d.hometown !== undefined ? (d.hometown || null) : existing.hometown,
-        country: d.country ?? existing.country,
-        moveInDate: d.moveInDate !== undefined
-          ? (d.moveInDate ? new Date(d.moveInDate) : null)
-          : existing.moveInDate,
-        isActive: body.isActive !== undefined ? body.isActive : existing.isActive,
-      },
-    });
-
-    const apartment = await prisma.apartment.findUnique({ where: { id: apt.apartmentId } });
+    const [member, apartment] = await Promise.all([
+      prisma.member.update({
+        where: { id },
+        data: {
+          name: d.name ?? existing.name,
+          photoUrl: d.photoUrl !== undefined ? (normalizeMemberPhotoUrl(d.photoUrl) ?? null) : existing.photoUrl,
+          email: d.email !== undefined ? (d.email || null) : existing.email,
+          phone: d.phone !== undefined ? (d.phone || null) : existing.phone,
+          nid: d.nid !== undefined ? (d.nid ? encrypt(d.nid) : null) : existing.nid,
+          hometown: d.hometown !== undefined ? (d.hometown || null) : existing.hometown,
+          country: d.country ?? existing.country,
+          moveInDate: d.moveInDate !== undefined
+            ? (d.moveInDate ? new Date(d.moveInDate) : null)
+            : existing.moveInDate,
+          isActive: body.isActive !== undefined ? body.isActive : existing.isActive,
+        },
+      }),
+      prisma.apartment.findUnique({
+        where: { id: apt.apartmentId },
+        select: { adminMemberId: true, billManagerId: true },
+      }),
+    ]);
     return jsonOk(
       sanitizeMemberForClient({
         ...member,

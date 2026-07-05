@@ -58,42 +58,62 @@ export async function runMonthlyJobsForApartment(apartmentId: string) {
       ? prevBill.memberPayments
       : await syncPaymentsFromCalculation(apartmentId, prevMonthKey, prevBill.id);
 
-    for (const pay of payments) {
-      const balance = pay.amountDue - pay.amountPaid;
-      if (balance <= 0 || pay.status === 'paid') continue;
+    const dueLabel = dueLabelForMonth(prevMonthKey);
 
-      const dueLabel = dueLabelForMonth(prevMonthKey);
-      const already = await prisma.billAdjustment.findFirst({
+    // Filter payments that need adjustments
+    const needsAdjustment = payments.filter((pay) => {
+      const balance = pay.amountDue - pay.amountPaid;
+      return balance > 0 && pay.status !== 'paid';
+    });
+
+    if (needsAdjustment.length > 0) {
+      // Batch query: find all existing adjustments at once
+      const existingAdjustments = await prisma.billAdjustment.findMany({
         where: {
           billId: currentBill.id,
-          memberId: pay.memberId,
+          memberId: { in: needsAdjustment.map((p) => p.memberId) },
           label: dueLabel,
         },
+        select: { memberId: true },
       });
-      if (!already) {
-        await prisma.billAdjustment.create({
-          data: {
+      const existingSet = new Set(existingAdjustments.map((a) => a.memberId));
+
+      // Filter to only members that don't have adjustments yet
+      const newAdjustments = needsAdjustment.filter((pay) => !existingSet.has(pay.memberId));
+
+      if (newAdjustments.length > 0) {
+        // Bulk create all adjustments
+        await prisma.billAdjustment.createMany({
+          data: newAdjustments.map((pay) => ({
             billId: currentBill.id,
             memberId: pay.memberId,
-            type: 'lend',
+            type: 'lend' as const,
             label: dueLabel,
-            amount: balance,
-          },
+            amount: pay.amountDue - pay.amountPaid,
+          })),
         });
-        await createNotification({
+
+        // Create notifications in bulk
+        await createNotificationsForMembers(
           apartmentId,
-          memberId: pay.memberId,
-          type: 'bill_due_carried',
-          title: `${monthLabel(parseMonthKey(prevMonthKey))} balance carried forward`,
-          body: `৳${balance.toLocaleString('en-BD')} from last month was added to this month's bill as due.`,
-          href: '/bills',
-          meta: { monthKey, prevMonthKey, amount: balance },
-        });
-        await logAudit(apartmentId, 'BILL_DUE_CARRIED', undefined, 'member', pay.memberId, {
-          monthKey,
-          prevMonthKey,
-          amount: balance,
-        });
+          newAdjustments.map((p) => p.memberId),
+          {
+            type: 'bill_due_carried',
+            title: `${monthLabel(parseMonthKey(prevMonthKey))} balance carried forward`,
+            body: `Balance from last month was added to this month's bill as due.`,
+            href: '/bills',
+            meta: { monthKey, prevMonthKey },
+          },
+        );
+
+        // Log audit for each
+        for (const pay of newAdjustments) {
+          await logAudit(apartmentId, 'BILL_DUE_CARRIED', undefined, 'member', pay.memberId, {
+            monthKey,
+            prevMonthKey,
+            amount: pay.amountDue - pay.amountPaid,
+          });
+        }
       }
     }
   }

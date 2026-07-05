@@ -25,14 +25,16 @@ export async function POST(req: NextRequest) {
     const parsed = bugReportSchema.safeParse(body);
     if (!parsed.success) return jsonError('Please describe the issue (at least 10 characters)', 400);
 
-    const apartment = await prisma.apartment.findUnique({
-      where: { id: apt.apartmentId },
-      select: { name: true },
-    });
-    const reporter = await prisma.member.findUnique({
-      where: { id: member.memberId },
-      select: { name: true, email: true },
-    });
+    const [apartment, reporter] = await Promise.all([
+      prisma.apartment.findUnique({
+        where: { id: apt.apartmentId },
+        select: { name: true },
+      }),
+      prisma.member.findUnique({
+        where: { id: member.memberId },
+        select: { name: true, email: true },
+      }),
+    ]);
 
     const emailed = await sendBugReportEmail({
       apartmentName: apartment?.name || 'Unknown',

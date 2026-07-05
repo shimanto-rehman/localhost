@@ -18,13 +18,28 @@ import { seedMealMemberSlotsForMember } from '@/lib/meal-member-slots';
 export async function GET(req: NextRequest) {
   try {
     const apt = await requireAptSession(req);
-    const members = await prisma.member.findMany({
-      where: { apartmentId: apt.apartmentId },
-      orderBy: { createdAt: 'asc' },
-    });
-    const apartment = await prisma.apartment.findUnique({
-      where: { id: apt.apartmentId },
-    });
+    const [members, apartment] = await Promise.all([
+      prisma.member.findMany({
+        where: { apartmentId: apt.apartmentId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          photoUrl: true,
+          email: true,
+          phone: true,
+          hometown: true,
+          country: true,
+          moveInDate: true,
+          isActive: true,
+          createdAt: true,
+        },
+      }),
+      prisma.apartment.findUnique({
+        where: { id: apt.apartmentId },
+        select: { adminMemberId: true, billManagerId: true },
+      }),
+    ]);
     return jsonOk(
       members.map((m) =>
         sanitizeMemberForClient({

@@ -17,22 +17,25 @@ export async function PATCH(req: NextRequest) {
 
     const { adminMemberId, billManagerId } = await req.json();
 
-    if (adminMemberId) {
-      const admin = await prisma.member.findFirst({
-        where: { id: adminMemberId, apartmentId: apt.apartmentId, isActive: true },
-      });
-      if (!admin) return jsonError('Invalid admin member', 400);
-      if (!admin.email?.trim() || !admin.phone?.trim()) {
-        return jsonError('Member must have email and phone number in their profile to be admin', 400);
-      }
-    }
+    // Run member validations in parallel
+    const [admin, bm] = await Promise.all([
+      adminMemberId
+        ? prisma.member.findFirst({
+            where: { id: adminMemberId, apartmentId: apt.apartmentId, isActive: true },
+          })
+        : Promise.resolve(null),
+      billManagerId
+        ? prisma.member.findFirst({
+            where: { id: billManagerId, apartmentId: apt.apartmentId, isActive: true },
+          })
+        : Promise.resolve(null),
+    ]);
 
-    if (billManagerId) {
-      const bm = await prisma.member.findFirst({
-        where: { id: billManagerId, apartmentId: apt.apartmentId, isActive: true },
-      });
-      if (!bm) return jsonError('Invalid bill manager', 400);
+    if (adminMemberId && !admin) return jsonError('Invalid admin member', 400);
+    if (adminMemberId && admin && (!admin.email?.trim() || !admin.phone?.trim())) {
+      return jsonError('Member must have email and phone number in their profile to be admin', 400);
     }
+    if (billManagerId && !bm) return jsonError('Invalid bill manager', 400);
 
     await prisma.apartment.update({
       where: { id: apt.apartmentId },

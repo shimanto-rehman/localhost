@@ -21,36 +21,31 @@ export async function POST(req: NextRequest) {
 
     const fieldErrors: Record<string, string> = {};
 
-    const existingName = await prisma.apartment.findUnique({ where: { name: d.apt_name } });
+    // Run all uniqueness checks in parallel
+    const [existingName, existingEmail, existingMemberEmail, existingPhone, existingMemberPhone] =
+      await Promise.all([
+        prisma.apartment.findUnique({ where: { name: d.apt_name } }),
+        prisma.apartment.findFirst({
+          where: { registrantEmail: { equals: d.registrant_email, mode: 'insensitive' } },
+        }),
+        prisma.member.findFirst({
+          where: { email: { equals: d.registrant_email, mode: 'insensitive' } },
+        }),
+        prisma.apartment.findFirst({
+          where: { registrantPhone: d.registrant_phone },
+        }),
+        prisma.member.findFirst({
+          where: { phone: d.registrant_phone },
+        }),
+      ]);
+
     if (existingName) {
       fieldErrors.apt_name = 'This apartment name is already taken';
     }
-
-    const existingEmail = await prisma.apartment.findFirst({
-      where: { registrantEmail: { equals: d.registrant_email, mode: 'insensitive' } },
-    });
-    if (existingEmail) {
+    if (existingEmail || existingMemberEmail) {
       fieldErrors.registrant_email = 'This email is already registered';
     }
-
-    const existingMemberEmail = await prisma.member.findFirst({
-      where: { email: { equals: d.registrant_email, mode: 'insensitive' } },
-    });
-    if (existingMemberEmail) {
-      fieldErrors.registrant_email = 'This email is already registered';
-    }
-
-    const existingPhone = await prisma.apartment.findFirst({
-      where: { registrantPhone: d.registrant_phone },
-    });
-    if (existingPhone) {
-      fieldErrors.registrant_phone = 'This phone number is already registered';
-    }
-
-    const existingMemberPhone = await prisma.member.findFirst({
-      where: { phone: d.registrant_phone },
-    });
-    if (existingMemberPhone) {
+    if (existingPhone || existingMemberPhone) {
       fieldErrors.registrant_phone = 'This phone number is already registered';
     }
 

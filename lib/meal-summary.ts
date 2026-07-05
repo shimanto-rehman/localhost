@@ -45,7 +45,11 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
   ]);
 
   const mealsPerDay = mealConfig?.mealsPerDay ?? 2;
-  const slotOptInMatrix = await loadMealSlotOptInMatrix(apartmentId, mealsPerDay);
+  const slotOptInMatrix = await loadMealSlotOptInMatrix(
+    apartmentId,
+    mealsPerDay,
+    activeMembers.map((m) => m.id),
+  );
   const guestMealMode = (mealConfig?.guestMealMode ?? 'EQUAL_SPLIT') as GuestMealMode;
 
   return {

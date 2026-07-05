@@ -17,23 +17,18 @@ export async function GET(req: NextRequest) {
     }
 
     const year = Number(req.nextUrl.searchParams.get('year') || new Date().getFullYear());
-    const profile = await getMemberProfile(
-      apt.apartmentId,
-      memberSession.memberId,
-      year,
-    );
+    const [profile, row, apartment] = await Promise.all([
+      getMemberProfile(apt.apartmentId, memberSession.memberId, year),
+      prisma.member.findFirst({
+        where: { id: memberSession.memberId, apartmentId: apt.apartmentId, isActive: true },
+      }),
+      prisma.apartment.findUnique({
+        where: { id: apt.apartmentId },
+        select: { adminMemberId: true, billManagerId: true },
+      }),
+    ]);
 
-    if (!profile) return jsonError('Profile not found', 404);
-
-    const row = await prisma.member.findFirst({
-      where: { id: memberSession.memberId, apartmentId: apt.apartmentId, isActive: true },
-    });
-    if (!row) return jsonError('Profile not found', 404);
-
-    const apartment = await prisma.apartment.findUnique({
-      where: { id: apt.apartmentId },
-      select: { adminMemberId: true, billManagerId: true },
-    });
+    if (!profile || !row) return jsonError('Profile not found', 404);
 
     const contact = sanitizeMemberForClient(
       {
@@ -79,21 +74,22 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const member = await prisma.member.update({
-      where: { id: existing.id },
-      data: {
-        name: d.name ?? existing.name,
-        photoUrl: d.photoUrl !== undefined ? (normalizeMemberPhotoUrl(d.photoUrl) ?? null) : existing.photoUrl,
-        email: d.email !== undefined ? (d.email || null) : existing.email,
-        phone: d.phone !== undefined ? (d.phone || null) : existing.phone,
-        nid: d.nid !== undefined ? (d.nid ? encrypt(d.nid) : null) : existing.nid,
-      },
-    });
-
-    const apartment = await prisma.apartment.findUnique({
-      where: { id: apt.apartmentId },
-      select: { adminMemberId: true, billManagerId: true },
-    });
+    const [member, apartment] = await Promise.all([
+      prisma.member.update({
+        where: { id: existing.id },
+        data: {
+          name: d.name ?? existing.name,
+          photoUrl: d.photoUrl !== undefined ? (normalizeMemberPhotoUrl(d.photoUrl) ?? null) : existing.photoUrl,
+          email: d.email !== undefined ? (d.email || null) : existing.email,
+          phone: d.phone !== undefined ? (d.phone || null) : existing.phone,
+          nid: d.nid !== undefined ? (d.nid ? encrypt(d.nid) : null) : existing.nid,
+        },
+      }),
+      prisma.apartment.findUnique({
+        where: { id: apt.apartmentId },
+        select: { adminMemberId: true, billManagerId: true },
+      }),
+    ]);
 
     return jsonOk(
       sanitizeMemberForClient(
