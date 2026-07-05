@@ -2382,6 +2382,28 @@ a.nav-link {
   opacity: 0.35; border-style: dashed; cursor: default;
   font-size: 10px; color: var(--text-dim);
 }
+/* Future meal planning — dashed border marks planned slots */
+.meal-dot--plan-yes {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  border-style: dashed;
+}
+.meal-dot--plan-yes:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.meal-dot--plan-no {
+  border-style: dashed;
+  border-color: var(--text-muted);
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 800;
+}
+.meal-dot--plan-no:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 
 /* My meal plan */
 .my-meal-plan { margin-bottom: 20px; }

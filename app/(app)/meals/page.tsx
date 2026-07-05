@@ -11,6 +11,12 @@ import { useToast } from '@/components/providers/ToastProvider';
 import { PaymentMethodsModal } from '@/components/ui/PaymentMethodsModal';
 import { mealChecklistKey, mealKey } from '@/lib/api/cache-keys';
 import { apiFetch } from '@/lib/api/fetcher';
+import {
+  findMealRecord,
+  getMealPlanUiState,
+  nextMealPlanStatus,
+  type MealPlanStatus,
+} from '@/lib/meal-planning';
 import { getCurrentWeekIndex, getDailyMealTotals, isMealConfirmed, type MealSlotOptInMatrix } from '@/lib/calculations/meals';
 import { memberHasPerm } from '@/lib/client-permissions';
 
@@ -22,6 +28,7 @@ type ChecklistRecord = {
   mealDate: string;
   mealSlot: number;
   isConfirmed: boolean;
+  planStatus?: MealPlanStatus | null;
 };
 
 type GuestRecord = {
@@ -45,18 +52,31 @@ function upsertChecklistRecord(
   memberId: string,
   mealDate: string,
   mealSlot: number,
-  isConfirmed: boolean,
+  patch: Partial<Pick<ChecklistRecord, 'isConfirmed' | 'planStatus'>>,
 ): ChecklistRecord[] {
   const d = mealDateKey(mealDate);
   const idx = records.findIndex(
     (r) => r.memberId === memberId && mealDateKey(r.mealDate) === d && r.mealSlot === mealSlot,
   );
+  if (patch.planStatus === null && idx >= 0) {
+    return records.filter((_, i) => i !== idx);
+  }
   if (idx >= 0) {
     const next = [...records];
-    next[idx] = { ...next[idx], isConfirmed };
+    next[idx] = { ...next[idx], ...patch };
     return next;
   }
-  return [...records, { memberId, mealDate: d, mealSlot, isConfirmed }];
+  if (patch.planStatus === null) return records;
+  return [
+    ...records,
+    {
+      memberId,
+      mealDate: d,
+      mealSlot,
+      isConfirmed: patch.isConfirmed ?? false,
+      planStatus: patch.planStatus ?? null,
+    },
+  ];
 }
 
 function upsertGuestRecord(
@@ -137,7 +157,10 @@ export default function MealsPage() {
     const nextConfirmed = !current;
 
     setLiveRecords((prev) =>
-      upsertChecklistRecord(prev, memberId, mealDate, mealSlot, nextConfirmed),
+      upsertChecklistRecord(prev, memberId, mealDate, mealSlot, {
+        isConfirmed: nextConfirmed,
+        planStatus: null,
+      }),
     );
     setGuestDay(mealDate);
 
@@ -152,7 +175,7 @@ export default function MealsPage() {
             memberId,
             mealDate,
             mealSlot,
-            nextConfirmed,
+            { isConfirmed: nextConfirmed, planStatus: null },
           ),
         };
       },
@@ -296,6 +319,53 @@ export default function MealsPage() {
 
   const isSlotOptedIn = (memberId: string, slot: number) =>
     slotOptInMatrix[memberId]?.[slot] !== false;
+
+  const cycleMealPlan = async (memberId: string, mealDate: string, mealSlot: number) => {
+    if (!canEditChecklist || isFinalized) return;
+    if (mealDate <= todayStr) return;
+
+    const rec = findMealRecord(liveRecords, memberId, mealDate, mealSlot);
+    const next = nextMealPlanStatus(getMealPlanUiState(rec));
+
+    setLiveRecords((prev) =>
+      upsertChecklistRecord(prev, memberId, mealDate, mealSlot, {
+        isConfirmed: false,
+        planStatus: next,
+      }),
+    );
+
+    void mutateChecklist(
+      (prev) => {
+        const data = prev as ChecklistData | undefined;
+        if (!data) return prev;
+        return {
+          ...data,
+          records: upsertChecklistRecord(
+            (data.records as ChecklistRecord[]) || [],
+            memberId,
+            mealDate,
+            mealSlot,
+            { isConfirmed: false, planStatus: next },
+          ),
+        };
+      },
+      { revalidate: false },
+    );
+
+    const res = await fetch(`/api/meals/${mk}/checklist`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId, mealDate, mealSlot, planStatus: next }),
+    });
+    if (!res.ok) {
+      setLiveRecords((checklist?.records as ChecklistRecord[]) || []);
+      void mutateChecklist();
+      const d = await res.json().catch(() => ({}));
+      toast(d.error || 'Could not update meal plan', 'error');
+      return;
+    }
+    refreshSummary();
+  };
 
   const getGuestCount = (memberId: string, date: string, slot: number) => {
     const rec = guestRecords.find(
@@ -578,6 +648,7 @@ export default function MealsPage() {
                                     </span>
                                   );
                                 }
+                                const slotRec = findMealRecord(records, m.id, d, slot);
                                 const confirmed = isMealConfirmed(
                                   records,
                                   m.id,
@@ -586,13 +657,42 @@ export default function MealsPage() {
                                   slotOptInMatrix,
                                   todayStr,
                                 );
+                                const planUi = getMealPlanUiState(slotRec);
                                 const label = (mealNames[slot] || 'M')[0].toUpperCase();
                                 const isPast = d < todayStr;
+
+                                if (isFuture) {
+                                  return (
+                                    <button
+                                      key={slot}
+                                      type="button"
+                                      className={`meal-dot${
+                                        planUi === 'planned'
+                                          ? ' meal-dot--plan-yes'
+                                          : planUi === 'opt_out'
+                                            ? ' meal-dot--plan-no'
+                                            : ''
+                                      }`}
+                                      disabled={!canEditChecklist || isFinalized}
+                                      onClick={() => cycleMealPlan(m.id, d, slot)}
+                                      title={`${mealNames[slot]} · ${m.name} · ${d}${
+                                        planUi === 'planned'
+                                          ? ' · Planned'
+                                          : planUi === 'opt_out'
+                                            ? ' · Skipping'
+                                            : ' · Click to plan'
+                                      }`}
+                                    >
+                                      {planUi === 'planned' ? '✓' : planUi === 'opt_out' ? '0' : label}
+                                    </button>
+                                  );
+                                }
+
                                 return (
                                   <button
                                     key={slot}
                                     type="button"
-                                    className={`meal-dot${confirmed ? ' meal-dot--on' : ''}${isFuture ? ' meal-dot--future' : ''}`}
+                                    className={`meal-dot${confirmed ? ' meal-dot--on' : ''}`}
                                     disabled={!canEditChecklist || isFinalized || (isPast && !currentMember?.isAdmin)}
                                     onClick={() => toggleMeal(m.id, d, slot, confirmed)}
                                     title={`${mealNames[slot]} · ${m.name} · ${d}`}
@@ -624,6 +724,14 @@ export default function MealsPage() {
               </span>
             ))}
             <span className="meal-legend-item">
+              <span className="meal-dot meal-dot--plan-yes" style={{ display: 'inline-flex', fontSize: 9 }}>✓</span>
+              Planned (will eat)
+            </span>
+            <span className="meal-legend-item">
+              <span className="meal-dot meal-dot--plan-no" style={{ display: 'inline-flex', fontSize: 9 }}>0</span>
+              Planned (skipping)
+            </span>
+            <span className="meal-legend-item">
               <span className="meal-dot meal-dot--off-plan" style={{ display: 'inline-flex', fontSize: 9 }}>–</span>
               Not in plan
             </span>
@@ -633,7 +741,7 @@ export default function MealsPage() {
             </span>
             {canEditChecklist && !isFinalized && (
               <span className="meal-legend-item" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 11 }}>
-                Click to toggle attendance
+                Future: click to plan → skip → reset
               </span>
             )}
           </div>

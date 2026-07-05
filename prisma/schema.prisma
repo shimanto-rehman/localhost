@@ -246,6 +246,11 @@ enum GuestMealMode {
   HOST_PAYS
 }
 
+enum MealPlanStatus {
+  PLANNED
+  OPT_OUT
+}
+
 model MealMemberSlot {
   apartmentId String  @map("apartment_id") @db.Uuid
   memberId    String  @map("member_id") @db.Uuid
@@ -266,7 +271,8 @@ model MealRecord {
   memberId    String    @map("member_id") @db.Uuid
   mealDate    DateTime  @map("meal_date") @db.Date
   mealSlot    Int       @map("meal_slot")
-  isConfirmed Boolean   @default(false) @map("is_confirmed")
+  isConfirmed Boolean         @default(false) @map("is_confirmed")
+  planStatus  MealPlanStatus? @map("plan_status")
   confirmedBy String?   @map("confirmed_by") @db.Uuid
   confirmedAt DateTime? @map("confirmed_at")
   createdAt   DateTime  @default(now()) @map("created_at")

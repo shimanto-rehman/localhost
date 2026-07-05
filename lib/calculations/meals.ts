@@ -1,10 +1,19 @@
 import type { GuestMealMode } from '@/lib/constants';
+import {
+  findMealRecord,
+  localDateStr,
+  memberDayHasPlanning,
+  mealDayKey,
+} from '@/lib/meal-planning';
+
+export type MealPlanStatus = 'PLANNED' | 'OPT_OUT';
 
 export interface MealRecord {
   memberId: string;
   mealDate: string;
   mealSlot: number;
   isConfirmed: boolean;
+  planStatus?: MealPlanStatus | null;
 }
 
 export interface GuestMealRecord {
@@ -49,11 +58,11 @@ export function isMealSlotOptedIn(
   return memberSlots[mealSlot] !== false;
 }
 
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function localDateStrFromDate(d: Date): string {
+  return localDateStr(d);
 }
 
-/** True when a member meal counts as confirmed (explicit record or implicit auto-confirm for today/past). */
+/** True when a member meal counts as confirmed for display or billing. */
 export function isMealConfirmed(
   records: MealRecord[],
   memberId: string,
@@ -63,16 +72,23 @@ export function isMealConfirmed(
   todayStr?: string,
 ): boolean {
   if (!isMealSlotOptedIn(slotOptInMatrix, memberId, mealSlot)) return false;
-  const date = mealDate.slice(0, 10);
-  const rec = records.find(
-    (r) =>
-      r.memberId === memberId &&
-      r.mealDate.slice(0, 10) === date &&
-      r.mealSlot === mealSlot,
-  );
-  if (rec) return rec.isConfirmed;
-  const today = todayStr ?? localDateStr(new Date());
-  return date <= today;
+
+  const date = mealDayKey(mealDate);
+  const today = todayStr ?? localDateStr();
+  const rec = findMealRecord(records, memberId, date, mealSlot);
+  const dayHasPlanning = memberDayHasPlanning(records, memberId, date);
+
+  if (date > today) return false;
+
+  if (rec) {
+    if (rec.isConfirmed) return true;
+    if (rec.planStatus === 'PLANNED') return true;
+    if (rec.planStatus === 'OPT_OUT') return false;
+    return false;
+  }
+
+  if (dayHasPlanning) return false;
+  return true;
 }
 
 export type MealCostOptions = {
@@ -81,7 +97,7 @@ export type MealCostOptions = {
   todayStr?: string;
 };
 
-function addImplicitTodayMeals(
+function addImplicitMealCounts(
   records: MealRecord[],
   slotOptInMatrix: MealSlotOptInMatrix | undefined,
   activeMemberIds: string[],
@@ -91,37 +107,27 @@ function addImplicitTodayMeals(
   mealCountByMember: Record<string, number>,
   mealCountByMemberSlot: Record<string, Record<number, number>>,
 ): number {
-  const today = todayStr ?? localDateStr(new Date());
+  const today = todayStr ?? localDateStr();
   const effectiveMonth = monthKey ?? today.slice(0, 7);
   const [y, m] = effectiveMonth.split('-').map(Number);
   const startDate = new Date(y, m - 1, 1);
   const lastDay = new Date(y, m, 0).getDate();
 
-  // Past months: count all days. Current month: through today. Future months: skip.
-  let endDay: number;
-  if (today < effectiveMonth) return 0; // future month
-  if (today.startsWith(effectiveMonth)) {
-    endDay = Number(today.slice(8)); // current month: through today
-  } else {
-    endDay = lastDay; // past month: all days
-  }
+  if (today < effectiveMonth) return 0;
 
+  const endDay = today.startsWith(effectiveMonth) ? Number(today.slice(8)) : lastDay;
   const endDate = new Date(y, m - 1, endDay);
 
   let added = 0;
   const d = new Date(startDate);
   while (d <= endDate) {
-    const dateStr = localDateStr(d);
+    const dateStr = localDateStrFromDate(d);
     for (const memberId of activeMemberIds) {
       for (let slot = 0; slot < mealsPerDay; slot++) {
         if (!isMealSlotOptedIn(slotOptInMatrix, memberId, slot)) continue;
-        const hasRecord = records.some(
-          (r) =>
-            r.memberId === memberId &&
-            r.mealDate.slice(0, 10) === dateStr &&
-            r.mealSlot === slot,
-        );
-        if (hasRecord) continue;
+        if (!isMealConfirmed(records, memberId, dateStr, slot, slotOptInMatrix, today)) continue;
+        const rec = findMealRecord(records, memberId, dateStr, slot);
+        if (rec?.isConfirmed) continue;
         mealCountByMember[memberId] = (mealCountByMember[memberId] || 0) + 1;
         if (!mealCountByMemberSlot[memberId]) mealCountByMemberSlot[memberId] = {};
         mealCountByMemberSlot[memberId][slot] =
@@ -179,6 +185,8 @@ export function calculateMealCosts(
   const foodByMember: Record<string, number> = {};
   const shoppingByMember: Record<string, number> = {};
 
+  const todayForCalc = options?.todayStr ?? localDateStr();
+
   confirmed.forEach((r) => {
     mealCountByMember[r.memberId] = (mealCountByMember[r.memberId] || 0) + 1;
     if (!mealCountByMemberSlot[r.memberId]) mealCountByMemberSlot[r.memberId] = {};
@@ -186,18 +194,19 @@ export function calculateMealCosts(
       (mealCountByMemberSlot[r.memberId][r.mealSlot] || 0) + 1;
   });
 
-  const implicitTodayCount = addImplicitTodayMeals(
+  const implicitCount = addImplicitMealCounts(
     eligibleRecords,
     slotOptInMatrix,
     activeMemberIds,
     options?.mealsPerDay ?? 2,
     options?.monthKey,
-    options?.todayStr,
+    todayForCalc,
     mealCountByMember,
     mealCountByMemberSlot,
   );
 
-  const totalMealCount = confirmed.length + implicitTodayCount + totalGuestMealCount;
+  const totalMealCount =
+    confirmed.length + implicitCount + totalGuestMealCount;
 
   guestRecords.forEach((g) => {
     if (g.guestCount <= 0) return;

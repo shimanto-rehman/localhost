@@ -19,7 +19,7 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
     await Promise.all([
     prisma.mealRecord.findMany({
       where: { apartmentId, mealDate: range },
-      select: { memberId: true, mealDate: true, mealSlot: true, isConfirmed: true },
+      select: { memberId: true, mealDate: true, mealSlot: true, isConfirmed: true, planStatus: true },
     }),
     prisma.mealShopping.findMany({
       where: { apartmentId, monthKey },
@@ -56,6 +56,7 @@ export async function getMealCostInputs(apartmentId: string, monthKey: string) {
         mealDate: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
         mealSlot: r.mealSlot,
         isConfirmed: r.isConfirmed,
+        planStatus: r.planStatus,
       };
     }),
     shopping: shopping.map((s) => ({ memberId: s.memberId, amount: s.amount })),
