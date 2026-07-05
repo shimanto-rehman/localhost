@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { AUDIT_EVENTS_KEY } from '@/lib/api/cache-keys';
 import { Avatar } from '@/components/ui/Avatar';
 import { BugReportModal } from '@/components/settings/BugReportModal';
+import { useCurrency } from '@/lib/use-currency';
 
 type AuditEvent = {
   id: string;
@@ -19,6 +20,7 @@ type AuditEvent = {
 
 export function ActivityLogPanel() {
   const [bugOpen, setBugOpen] = useState(false);
+  const { symbol } = useCurrency();
   const { data, isLoading } = useSWR<{ events: AuditEvent[] }>(AUDIT_EVENTS_KEY);
   const events = data?.events ?? [];
 
@@ -67,7 +69,7 @@ export function ActivityLogPanel() {
                   {e.actor ? e.actor.name : 'System'}
                 </div>
                 {e.meta && Object.keys(e.meta).length > 0 && (
-                  <div className="activity-item__meta">{formatMeta(e.meta)}</div>
+                  <div className="activity-item__meta">{formatMeta(e.meta, symbol)}</div>
                 )}
               </div>
             </article>
@@ -80,15 +82,15 @@ export function ActivityLogPanel() {
   );
 }
 
-function formatMeta(meta: Record<string, unknown>): string {
+function formatMeta(meta: Record<string, unknown>, symbol: string = '৳'): string {
   const parts: string[] = [];
   if (meta.monthKey) parts.push(`Month: ${meta.monthKey}`);
   if (meta.status) parts.push(`Status: ${meta.status}`);
-  if (meta.amountPaid != null) parts.push(`Paid: ৳${Number(meta.amountPaid).toLocaleString('en-BD')}`);
-  if (meta.amountDue != null) parts.push(`Due: ৳${Number(meta.amountDue).toLocaleString('en-BD')}`);
-  if (meta.amount != null) parts.push(`Amount: ৳${Number(meta.amount).toLocaleString('en-BD')}`);
+  if (meta.amountPaid != null) parts.push(`Paid: ${symbol}${Number(meta.amountPaid).toLocaleString('en-BD')}`);
+  if (meta.amountDue != null) parts.push(`Due: ${symbol}${Number(meta.amountDue).toLocaleString('en-BD')}`);
+  if (meta.amount != null) parts.push(`Amount: ${symbol}${Number(meta.amount).toLocaleString('en-BD')}`);
   if (meta.memberName) parts.push(`Member: ${meta.memberName}`);
-  if (meta.electricity != null) parts.push(`Electricity: ৳${meta.electricity}`);
+  if (meta.electricity != null) parts.push(`Electricity: ${symbol}${meta.electricity}`);
   if (meta.preview) parts.push(String(meta.preview));
   if (meta.pageUrl) parts.push(String(meta.pageUrl));
   return parts.join(' · ');

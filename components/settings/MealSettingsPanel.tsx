@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/providers/ToastProvider';
+import { useCurrency } from '@/lib/use-currency';
 import {
   GUEST_MEAL_MODE_DESCRIPTIONS,
   GUEST_MEAL_MODE_LABELS,
@@ -151,6 +152,7 @@ export function MealSettingsPanel({
   onSaved: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { symbol } = useCurrency();
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<MealConfigState>({
     mealsPerDay: 2,
@@ -345,7 +347,7 @@ export function MealSettingsPanel({
             </div>
           </div>
           <div className="meal-option-card__control meal-option-card__money">
-            <span className="meal-option-card__currency">৳</span>
+            <span className="meal-option-card__currency">{symbol}</span>
             <input
               id="meal-rate-input"
               className="meal-option-card__money-input"

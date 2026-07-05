@@ -1,4 +1,5 @@
 import { MONTH_NAMES } from './constants';
+import { getCurrencyByCode } from './currencies';
 
 export function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -13,8 +14,10 @@ export function parseMonthKey(key: string): Date {
   return new Date(y, m - 1, 1);
 }
 
-export function fmt(n: number): string {
-  return '৳' + Number(n).toLocaleString('en-BD');
+/** Format number with currency symbol. Pass currencyCode from apartment context. */
+export function fmt(n: number, currencyCode?: string | null): string {
+  const currency = getCurrencyByCode(currencyCode);
+  return currency.symbol + Number(n).toLocaleString(currency.locale);
 }
 
 export function ceilPerHead(total: number, n: number): number {

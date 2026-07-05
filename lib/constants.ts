@@ -27,6 +27,21 @@ export const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
   Other: '#94a3b8',
 };
 
+export const EXPENSE_PLAN_UNITS = [
+  'kg', 'ltr', 'pcs', 'dozen', 'pack', 'bottle', 'bag', 'box', 'set', 'pair',
+] as const;
+
+export const EXPENSE_PLAN_CATEGORY_ICONS: Record<string, string> = {
+  Food: '🍕',
+  Groceries: '🛒',
+  Utilities: '⚡',
+  Transport: '🚗',
+  Household: '🏠',
+  Entertainment: '🎬',
+  Medical: '💊',
+  Other: '📦',
+};
+
 export const CHART_COLORS = ['#2dd4bf', '#14b8a6', '#0d9488', '#5eead4', '#2ebfa8', '#0f766e'];
 
 export const DEFAULT_FIXED_COSTS = [

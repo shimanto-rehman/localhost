@@ -31,6 +31,10 @@ export function expenseKey(monthKey: string) {
   return `/api/expenses/${monthKey}`;
 }
 
+export function expensePlanKey(monthKey: string) {
+  return `/api/expense-plans/${monthKey}`;
+}
+
 export const NOTIFICATIONS_KEY = '/api/notifications';
 export const AUDIT_EVENTS_KEY = '/api/audit-events';
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useToast } from '@/components/providers/ToastProvider';
+import { useCurrency } from '@/lib/use-currency';
 import type { OptInMatrix } from '@/lib/calculations/bills';
 
 type Member = { id: string; name: string; photoUrl?: string | null };
@@ -22,6 +23,7 @@ export function MemberOptionalCostsPanel({
   onRefresh: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { symbol } = useCurrency();
   const [pending, setPending] = useState<string | null>(null);
 
   if (optionalCosts.length === 0) {
@@ -91,7 +93,7 @@ export function MemberOptionalCostsPanel({
                       />
                       <span className="member-opt-in__check-ui" aria-hidden />
                       <span className="member-opt-in__cost-name">{oc.name}</span>
-                      <span className="member-opt-in__cost-amt">৳{oc.amount}</span>
+                      <span className="member-opt-in__cost-amt">{symbol}{oc.amount}</span>
                     </label>
                   </li>
                 );

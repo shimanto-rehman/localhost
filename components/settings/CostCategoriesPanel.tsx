@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { fmt } from '@/lib/utils';
+import { useCurrency } from '@/lib/use-currency';
 import { useToast } from '@/components/providers/ToastProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -63,6 +63,7 @@ function CostCard({
   onDraftChange: (patch: Partial<Draft>) => void;
   onRemove: () => void;
 }) {
+  const { symbol } = useCurrency();
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('application/json', JSON.stringify(dragPayload));
     e.dataTransfer.effectAllowed = 'move';
@@ -106,9 +107,9 @@ function CostCard({
         />
       </label>
       <label className="cost-card__field cost-card__field--amount">
-        <span className="cost-card__label">Monthly (৳)</span>
+        <span className="cost-card__label">Monthly ({symbol})</span>
         <div className="cost-card__amount-wrap">
-          <span className="cost-card__currency">৳</span>
+          <span className="cost-card__currency">{symbol}</span>
           <input
             className="form-input cost-card__amount"
             type="number"
@@ -137,6 +138,7 @@ export function CostCategoriesPanel({
   onRefresh: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { format } = useCurrency();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -329,7 +331,7 @@ export function CostCategoriesPanel({
         </div>
         <div className="cost-zone__total">
           <span className="cost-zone__total-label">Monthly</span>
-          <span className="cost-zone__total-value">{fmt(total)}</span>
+          <span className="cost-zone__total-value">{format(total)}</span>
         </div>
       </header>
 

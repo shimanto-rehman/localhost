@@ -18,6 +18,7 @@ export interface ApartmentInfo {
   aptFloor?: string | null;
   adminMemberId?: string | null;
   billManagerId?: string | null;
+  currency?: string | null;
   members?: { id: string; name: string; photoUrl?: string | null }[];
 }
 

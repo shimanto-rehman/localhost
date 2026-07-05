@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
           moveInDate: true,
           adminMemberId: true,
           billManagerId: true,
+          currency: true,
         },
       }),
       prisma.member.findMany({
@@ -87,6 +88,7 @@ export async function GET(req: NextRequest) {
         moveInDate: apartment.moveInDate?.toISOString().slice(0, 10),
         adminMemberId: apartment.adminMemberId,
         billManagerId: apartment.billManagerId,
+        currency: apartment.currency,
         members: shellMembers.filter((m) => m.isActive).slice(0, 5).map((m) => ({
           id: m.id,
           name: m.name,

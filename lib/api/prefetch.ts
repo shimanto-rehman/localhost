@@ -10,6 +10,7 @@ import {
   mealKey,
   mealChecklistKey,
   expenseKey,
+  expensePlanKey,
   profileKey,
   currentMonthKey,
 } from './cache-keys';
@@ -40,6 +41,9 @@ export function prefetchRoute(href: string) {
       break;
     case '/expenses':
       preloadKey(expenseKey(mk));
+      break;
+    case '/expense-plan':
+      preloadKey(expensePlanKey(mk));
       break;
     case '/profile':
       preloadKey(profileKey(year));

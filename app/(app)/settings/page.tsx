@@ -8,6 +8,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { useApp } from '@/components/providers/AppProvider';
 import { useToast } from '@/components/providers/ToastProvider';
 import { LOGO_SRC, MONTH_NAMES } from '@/lib/constants';
+import { CURRENCIES } from '@/lib/currencies';
+import { CurrencySelect } from '@/components/settings/CurrencySelect';
+import { FlagEmoji } from '@/components/ui/FlagEmoji';
 import { CostCategoriesPanel } from '@/components/settings/CostCategoriesPanel';
 import { MemberOptionalCostsPanel } from '@/components/settings/MemberOptionalCostsPanel';
 import { MemberPaymentMethodsEditor } from '@/components/settings/MemberPaymentMethodsEditor';
@@ -48,6 +51,7 @@ export default function SettingsPage() {
   const [unlockYear, setUnlockYear] = useState(String(new Date().getFullYear()));
   const [aptAddress, setAptAddress] = useState('');
   const [aptFloor, setAptFloor] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState('BDT');
   const [apartmentSignOutOpen, setApartmentSignOutOpen] = useState(false);
   const [apartmentSignOutLoading, setApartmentSignOutLoading] = useState(false);
   const [dangerAction, setDangerAction] = useState<DangerActionId | null>(null);
@@ -106,6 +110,7 @@ export default function SettingsPage() {
     if (apartment) {
       setAptAddress(apartment.address || '');
       setAptFloor(apartment.aptFloor || '');
+      setSelectedCurrency(apartment.currency || 'BDT');
     }
   }, [apartment]);
 
@@ -321,6 +326,18 @@ export default function SettingsPage() {
     });
     if (!res.ok) { toast('Could not save apartment details', 'error'); return; }
     toast('Apartment details saved');
+    await refresh();
+  };
+
+  const saveCurrency = async () => {
+    if (!canManageCosts) { toast('You do not have permission to change currency', 'error'); return; }
+    const res = await fetch('/api/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currency: selectedCurrency }),
+    });
+    if (!res.ok) { toast('Could not save currency', 'error'); return; }
+    toast('Currency updated');
     await refresh();
   };
 
@@ -666,8 +683,44 @@ export default function SettingsPage() {
             }}
           />
 
-          <section className="apt-session" aria-label="Apartment session">
-            <div className="apt-session__card">
+          <div className="settings-apt-section">
+            <div className="config-block config-block--apt-details">
+              <div className="config-block__head">Apartment Details</div>
+              <div className="config-block__body">
+                <div className="form-grid form-grid--2">
+                  <div>
+                    <label className="form-label">Apartment Address</label>
+                    <input
+                      className="form-input"
+                      value={aptAddress}
+                      disabled={!canManageApartment}
+                      placeholder="H-38, R-13, Nikunja-2"
+                      onChange={(e) => setAptAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Floor / Unit Badge</label>
+                    <input
+                      className="form-input"
+                      value={aptFloor}
+                      disabled={!canManageApartment}
+                      placeholder="7TH FLOOR"
+                      onChange={(e) => setAptFloor(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {canManageApartment && (
+                  <div className="actions-row">
+                    <button className="btn btn-primary btn-sm" type="button" onClick={saveAptDetails}>
+                      Save Details
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <section className="apt-session" aria-label="Apartment session">
+              <div className="apt-session__card">
               <div className="apt-session__shine" aria-hidden="true" />
 
               <header className="apt-session__header">
@@ -732,43 +785,54 @@ export default function SettingsPage() {
                   Sign out apartment
                 </button>
               </footer>
-            </div>
-          </section>
+              </div>
+            </section>
+          </div>
         </div>
       )}
 
       {/* ── Cost Managing tab ── */}
       {tab === 'costs' && (
         <>
-          <div className="config-block">
-            <div className="config-block__head">Apartment Details</div>
+          <div className="config-block config-block--currency">
+            <div className="config-block__head">Currency</div>
             <div className="config-block__body">
-              <div className="form-grid form-grid--2">
-                <div>
-                  <label className="form-label">Apartment Address</label>
-                  <input
-                    className="form-input"
-                    value={aptAddress}
-                    disabled={!canManageApartment}
-                    placeholder="H-38, R-13, Nikunja-2"
-                    onChange={(e) => setAptAddress(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Floor / Unit Badge</label>
-                  <input
-                    className="form-input"
-                    value={aptFloor}
-                    disabled={!canManageApartment}
-                    placeholder="7TH FLOOR"
-                    onChange={(e) => setAptFloor(e.target.value)}
-                  />
-                </div>
-              </div>
-              {canManageApartment && (
+              {(() => {
+                const selected = CURRENCIES.find((c) => c.code === selectedCurrency) || CURRENCIES[0];
+                const previewAmount = new Intl.NumberFormat(selected.locale, {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 2,
+                }).format(1234.56);
+                return (
+                  <div className="currency-panel">
+                    <div className="currency-panel__field">
+                      <span className="currency-panel__label">Display currency</span>
+                      <CurrencySelect
+                        value={selectedCurrency}
+                        disabled={!canManageCosts}
+                        onChange={setSelectedCurrency}
+                      />
+                      <span className="currency-panel__hint">{selected.country}</span>
+                    </div>
+
+                    <div className="currency-panel__preview">
+                      <span className="currency-panel__label">Live preview</span>
+                      <div className="currency-panel__preview-card">
+                        <FlagEmoji locale={selected.locale} className="currency-panel__preview-flag" width={26} />
+                        <span className="currency-panel__preview-amount">
+                          {selected.symbol}{previewAmount}
+                        </span>
+                        <span className="currency-panel__preview-code">{selected.code}</span>
+                      </div>
+                      <span className="currency-panel__hint">{selected.name}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+              {canManageCosts && (
                 <div className="actions-row">
-                  <button className="btn btn-primary btn-sm" type="button" onClick={saveAptDetails}>
-                    Save Details
+                  <button className="btn btn-primary btn-sm" type="button" onClick={saveCurrency}>
+                    Save Currency
                   </button>
                 </div>
               )}

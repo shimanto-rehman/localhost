@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
     "db:push": "prisma db push",
+    "db:baseline:mark": "prisma migrate resolve --applied 20250705140000_baseline",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

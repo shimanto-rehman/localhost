@@ -14,6 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/bills': 'Monthly Bills',
   '/meals': 'Meal Management',
   '/expenses': 'Expenses',
+  '/expense-plan': 'Expense Plan',
   '/import': 'Monthly Import',
   '/settings': 'Configuration',
   '/profile': 'My Profile',

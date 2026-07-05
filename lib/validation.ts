@@ -131,6 +131,21 @@ export const expenseSchema = z.object({
   expenseDate: z.string().optional(),
 });
 
+export const expensePlanItemSchema = z.object({
+  category: z.string().min(1).max(40),
+  itemName: z.string().trim().min(1).max(80),
+  unit: z.string().max(20).default('pcs'),
+  quantity: z.number().int().positive().default(1),
+  unitPrice: z.number().int().positive(),
+});
+
+export const expensePlanItemPatchSchema = z.object({
+  itemName: z.string().trim().min(1).max(80).optional(),
+  unit: z.string().max(20).optional(),
+  quantity: z.number().int().positive().optional(),
+  unitPrice: z.number().int().positive().optional(),
+});
+
 export const bankAccountSchema = z.object({
   accountNumber: z.string().regex(/^\d{9,18}$/),
   bankName: z.string().trim().min(2).max(80),

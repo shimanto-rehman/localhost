@@ -74,6 +74,16 @@ Basic skills needed: install Node.js, run terminal commands, and (for production
 | **Rent split** | Custom fixed contributions; remainder split among free members |
 | **Bank reference** | Bill Manager account shown via eye icon for manual transfers |
 | **Password reset** | Email-based reset links (SMTP or Resend) |
+| **Expense plan** | Monthly budget drafts by category — line items with qty, unit, and price; per-card total |
+| **Monthly import** | Excel template download and bulk import for bills, meals, and expenses |
+| **Guest meals** | Track guest meal slots; equal split or host-pays modes |
+| **Meal planning** | Future dates: plan / skip / unplanned; today auto-confirmed (opt out) |
+| **Display currency** | Choose from 40+ currencies in Settings; amounts formatted app-wide |
+| **Member profile** | Self-service profile edit (photo, contact, NID) |
+| **User guides** | Public `/guides` manual — bill splitting, meal rates, full app walkthrough |
+| **Notifications** | In-app bell for bill due, meal, and system events |
+| **Role permissions** | Configurable permission matrix per role beyond defaults |
+| **Activity log** | Audit trail of admin and bill-manager actions |
 | **Backup / restore** | Full JSON export; transactional import |
 | **Dark / light theme** | Toggle in top bar; saved in `localStorage` |
 | **Mobile responsive** | Sidebar + bottom navigation on phones |
@@ -161,7 +171,11 @@ Localhost/
 │   │   ├── bills/
 │   │   ├── meals/
 │   │   ├── expenses/
+│   │   ├── expense-plan/
+│   │   ├── import/
+│   │   ├── profile/
 │   │   └── settings/
+│   ├── guides/                 ← Public user manual & SEO guides
 │   ├── api/                    ← Route handlers (REST API)
 │   ├── reset-password/[token]/
 │   ├── layout.tsx              ← Root layout + SEO metadata
@@ -272,9 +286,13 @@ npm run db:studio
 | Home / Auth | `/` | Apartment sign in or register |
 | Dashboard | `/dashboard` | Stats, charts, current month bills |
 | Monthly Bills | `/bills` | Enter electricity, view locked breakdown |
-| Meals | `/meals` | Weekly checklist, shopping, summary |
+| Meals | `/meals` | Weekly checklist, guest meals, shopping, summary |
 | Expenses | `/expenses` | Personal spending + carry-forward |
-| Settings | `/settings` | Members, costs, backup, danger zone |
+| Expense Plan | `/expense-plan` | Monthly budget drafts by category (sidebar) |
+| Monthly Import | `/import` | Excel template download and bulk import |
+| Profile | `/profile` | Member profile and photo |
+| Settings | `/settings` | Members, costs, currency, backup, danger zone |
+| User Guide | `/guides` | Public manual (no login required) |
 
 On mobile, use the **bottom nav** or tap **☰** for the sidebar.
 
@@ -298,19 +316,33 @@ Click **Sign in to edit** in the sidebar to log in as a member.
 
 ### Meal workflow
 
-1. Go to **Meals** → toggle meal slots each week  
-2. Members add **shopping** items to the pool  
-3. Per-meal cost updates automatically  
-4. Bill Manager clicks **Finalize Meals** for the month  
-5. Meal costs appear on the locked monthly bill  
+1. Go to **Meals** → defaults to the **current week**
+2. Toggle meal slots each week; **today’s meals are auto-confirmed** (click to opt out)
+3. On **future dates**, cycle plan → skip → unplanned per slot
+4. Add **guest meals** when visitors eat (equal split or host-pays mode in Settings)
+5. Members add **shopping** items to the pool
+6. Per-meal cost updates automatically
+7. Bill Manager clicks **Finalize Meals** for the month
+8. Meal costs appear on the locked monthly bill
+
+### Expense plan workflow
+
+1. Go to **Expense Plan** (sidebar — desktop-oriented)
+2. Each category is a card (2 per row on desktop, 1 on mobile)
+3. Add line items: name, unit, quantity, unit price
+4. Each card shows **Total cost** at the bottom for that category
+5. Use as a monthly budget reference before actual spending
 
 ### Configuration tabs
 
-- **Members** — add flatmates, assign roles, send password reset  
+- **Members** — add flatmates, assign roles, payment methods, send password reset  
 - **Fixed Costs** — rent, gas, water, service, custom items  
 - **Optional** — maid, Wi‑Fi, etc. with opt-in matrix  
 - **Rent Split** — fixed contributions per member  
-- **Meal Settings** — meals per day, names, week start day  
+- **Meal Settings** — meals per day, names, week start, guest meal mode  
+- **Currency** — display currency with live preview (40+ options)  
+- **Role Permissions** — fine-grained edit/view permissions per role  
+- **Activity Log** — audit trail of significant actions  
 - **Backup** — export / import JSON  
 - **Danger Zone** — unlock month, reset bills/meals/all  
 
@@ -406,8 +438,12 @@ All routes are under `/api/`. Apartment session cookie (`apt_session`) is requir
 | Members | `GET/POST /api/members`, `PATCH/DELETE /api/members/[id]` |
 | Config | `GET /api/config`, `PATCH /api/config/*` |
 | Bills | `GET /api/bills`, `POST /api/bills/[monthKey]/lock`, `GET .../calculation` |
-| Meals | `GET/PATCH /api/meals/[monthKey]/checklist`, `POST .../shopping`, `POST .../finalize` |
+| Meals | `GET/PATCH /api/meals/[monthKey]/checklist`, `PATCH .../guests`, `POST .../shopping`, `POST .../finalize` |
 | Expenses | `GET/POST /api/expenses/[monthKey]` |
+| Expense plans | `GET/POST /api/expense-plans/[monthKey]`, `PATCH/DELETE .../[id]` |
+| Import | `GET /api/import/template`, `POST /api/import/export` |
+| Profile | `GET/PATCH /api/profile` |
+| Notifications | `GET/PATCH /api/notifications` |
 | Dashboard | `GET /api/dashboard/year-summary`, `GET .../current-month` |
 | Backup | `GET /api/backup/export`, `POST /api/backup/restore` |
 | Danger | `POST /api/danger/reset-bills`, `reset-meals`, `reset-all` |
@@ -520,7 +556,10 @@ npx prisma migrate dev
 | `npm run build` | Production build |
 | `npm run start` | Run production server locally |
 | `npm run db:migrate` | Create/apply migrations (dev) |
-| `npm run db:push` | Push schema without migration files |
+| `npm run db:deploy` | Apply migrations in production |
+| `npm run db:status` | Check migration status |
+| `npm run db:baseline:mark` | Mark baseline migration applied (one-time drift fix) |
+| `npm run db:push` | Push schema without migration files (dev only) |
 | `npm run db:studio` | Open Prisma Studio GUI |
 
 ---

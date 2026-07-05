@@ -7,9 +7,9 @@
 | Field | Details |
 |---|---|
 | **Document Title** | Business Requirements Document — LocalHost Apartment Bill Sharing Application |
-| **Version** | 2.0 |
+| **Version** | 2.1 |
 | **Status** | Final — Ready for Development |
-| **Date** | June 2026 |
+| **Date** | July 2026 |
 | **Prepared By** | Product Owner / Shimanto Rehman |
 | **Currency** | Bangladeshi Taka (৳) |
 | **Target Region** | Bangladesh (primary); adaptable globally |
@@ -47,6 +47,10 @@
    - 7.17 [Data Backup & Restore](#717-data-backup--restore)
    - 7.18 [Danger Zone (Admin Reset Controls)](#718-danger-zone-admin-reset-controls)
    - 7.19 [UI & Navigation](#719-ui--navigation)
+   - 7.20 [Expense Plan (Monthly Budget)](#720-expense-plan-monthly-budget)
+   - 7.21 [Guest Meals & Meal Planning](#721-guest-meals--meal-planning)
+   - 7.22 [Monthly Import & Export](#722-monthly-import--export)
+   - 7.23 [Display Currency & User Guides](#723-display-currency--user-guides)
 8. [Non-Functional Requirements](#8-non-functional-requirements)
 9. [Database Schema](#9-database-schema)
 10. [API Specification](#10-api-specification)
@@ -78,7 +82,9 @@ The application solves three interconnected problems that arise in shared living
 - Full member profile management (NID, email, phone, hometown)
 - Email-based password reset
 - A configurable Fixed + Optional cost system
-- Meal management with weekly checklists and per-meal cost calculation
+- Meal management with weekly checklists, guest meals, meal planning, and per-meal cost calculation
+- Expense Plan for monthly budget drafting by category
+- Display currency configuration and public user guides
 - Bill Manager bank account storage with an in-app payment reference card
 - Prisma ORM for type-safe database access
 
@@ -110,7 +116,12 @@ The application solves three interconnected problems that arise in shared living
 - **Full member profiles** with NID, email, phone, hometown, country
 - **Email-based password reset** with secure tokenized links
 - **Configurable fixed costs** and **configurable optional costs** (per-member opt-in)
-- **Meal management** with weekly checklists, shopping input, per-meal cost calculation, and monthly summaries
+- **Meal management** with weekly checklists, guest meals, future meal planning, shopping pool, and monthly summaries
+- **Expense Plan** — monthly budget drafts by category
+- **Monthly Excel import/export** for bulk data entry
+- **Display currency** selector (40+ currencies for formatting)
+- **Public user guides** at `/guides`
+- **Member profile** self-service editing, **notifications**, **role permissions**, and **activity log**
 - **Monthly bill entry** with locking and unlock mechanism
 - **Bill Calculation Engine** integrating fixed costs, optional costs, and meal costs
 - **Adjustment entries** (lend/borrow) per member per locked month
@@ -127,8 +138,8 @@ The application solves three interconnected problems that arise in shared living
 - Payment gateway or real-time money transfer (bank account is for manual reference only)
 - SMS notifications
 - Native mobile applications (iOS/Android)
-- Multi-currency support (৳ Taka only in v2.0)
-- Audit log / change history trail
+- Multi-currency payment processing (display formatting only; amounts stored as integers)
+- Real-time WebSocket sync across clients
 - Two-factor authentication (2FA)
 - PDF invoice or report generation
 - AI-based expense prediction or budgeting
@@ -675,6 +686,10 @@ Each cell shows the meal slots for that day (e.g., Lunch, Dinner based on config
 | MEAL-CL-11 | Future dates are shown but toggles for future dates are disabled |
 | MEAL-CL-12 | The card scrolls horizontally on small screens |
 | MEAL-CL-13 | A "Mark All" and "Clear All" quick-action button is available per row (for Admin/Bill Manager) |
+| MEAL-CL-14 | The page defaults to the **current week** on load |
+| MEAL-CL-15 | **Today's** meal slots are auto-confirmed (implicit); members can click to opt out |
+| MEAL-CL-16 | **Future dates** support a tri-state cycle per slot: planned → skip → unplanned |
+| MEAL-CL-17 | If any slot on a member-day is planned, other slots on that day count as planned unless explicitly skipped |
 
 #### 7.13.4 Meal Configuration (in Configuration Panel)
 
@@ -684,12 +699,15 @@ Each cell shows the meal slots for that day (e.g., Lunch, Dinner based on config
 | Meal Names | Customizable labels for each slot | Lunch, Dinner |
 | Meal Start Day | First day of the meal week | Saturday (Bangladeshi standard) |
 | Meal Rate Override | Fixed per-meal rate (optional, bypasses calculated rate) | Off (calculated from shopping) |
+| Guest Meal Mode | How guest meal cost is allocated | Equal split among members / Host pays |
 
 | ID | Requirement |
 |---|---|
 | MEAL-CFG-01 | Admin configures meal settings in Configuration → Meal Settings tab |
 | MEAL-CFG-02 | Changing meals-per-day does not retroactively affect locked months |
 | MEAL-CFG-03 | Meal slot names are shown as column sub-headers in the checklist card |
+| MEAL-CFG-04 | **Guest Meal Mode**: `EQUAL_SPLIT` (cost divided among active members) or `HOST_PAYS` (host member bears full guest cost) |
+| MEAL-CFG-05 | Guest meal records are stored per apartment, member (host), date, and meal slot |
 
 #### 7.13.5 Meal Shopping (Cost Input)
 
@@ -887,9 +905,13 @@ A table with every cost component as a row, showing per-member columns.
 | Preloader → Apartment Auth | `/` | First screen; login or register apartment |
 | Dashboard | `/dashboard` | Stats, charts, current month overview |
 | Monthly Bills | `/bills` | Month navigator, bill entry, locked bill view |
-| Meal Management | `/meals` | Weekly checklist, shopping, monthly summary |
+| Meal Management | `/meals` | Weekly checklist, guest meals, shopping, monthly summary |
 | Expenses | `/expenses` | Personal expense tracker |
-| Configuration | `/settings` | Members, Costs, Rent Split, Meal Settings, Backup, Danger Zone tabs |
+| Expense Plan | `/expense-plan` | Monthly budget drafts by category |
+| Monthly Import | `/import` | Excel template download and bulk import |
+| Member Profile | `/profile` | Self-service profile edit |
+| Configuration | `/settings` | Members, Costs, Currency, Rent Split, Meal Settings, Backup, Danger Zone |
+| User Guide | `/guides` | Public manual and SEO guides (no login) |
 | Password Reset | `/reset-password/[token]` | Public page (no apartment session required) |
 
 #### 7.19.2 Configuration Tabs
@@ -900,7 +922,10 @@ A table with every cost component as a row, showing per-member columns.
 | Fixed Costs | Apartment address, custom fixed cost line items, fixed bucket preview |
 | Optional Costs | Custom optional cost items with per-member opt-in matrix |
 | Rent Split | Per-member fixed contribution toggles with real-time remainder calculation |
-| Meal Settings | Meals per day, meal names, start day of week, rate override |
+| Meal Settings | Meals per day, meal names, start day of week, rate override, guest meal mode |
+| Currency | Display currency selector with live preview |
+| Role Permissions | Configurable permission matrix per role |
+| Activity Log | Audit trail of significant actions |
 | Backup | Export / Import controls |
 | Danger Zone | Unlock, reset, and wipe controls |
 
@@ -930,6 +955,75 @@ A table with every cost component as a row, showing per-member columns.
 - Error: red dot, auto-dismiss in 5 seconds (longer to read)
 - Info: blue dot, auto-dismiss in 3.2 seconds
 - Multiple toasts stack from the bottom right
+
+---
+
+### 7.20 Expense Plan (Monthly Budget)
+
+A sidebar-only page for drafting expected monthly spending by category before actual expenses are logged.
+
+| ID | Requirement |
+|---|---|
+| EPLAN-01 | Page path: `/expense-plan`; linked from desktop sidebar (not bottom mobile nav) |
+| EPLAN-02 | Categories match expense tracker categories: Food, Groceries, Utilities, Transport, Household, Entertainment, Medical, Other |
+| EPLAN-03 | Layout: **1 card per row on mobile**, **2 cards per row on desktop** (≥768px) |
+| EPLAN-04 | Each card shows: category icon, item count, scrollable line-item list, add-item form, and **Total cost** footer |
+| EPLAN-05 | Line items: Item Name, Unit (dropdown: kg, ltr, pcs, dozen, etc.), Quantity, Unit Price |
+| EPLAN-06 | `totalPrice = quantity × unitPrice`; category total = sum of line items |
+| EPLAN-07 | Members with `edit_any_expense` permission can add, edit, and delete plan items |
+| EPLAN-08 | Data is scoped per apartment per `monthKey` (current month by default) |
+| EPLAN-09 | Hero header shows total budget, line-item count, and category count |
+| EPLAN-10 | Amounts display using the apartment's configured display currency symbol |
+
+---
+
+### 7.21 Guest Meals & Meal Planning
+
+**Guest meals** track when a member hosts visitors. **Meal planning** lets members mark future dates before confirmation.
+
+| ID | Requirement |
+|---|---|
+| GUEST-01 | Guest meal section on Meals page: host member, date, meal slot, guest count |
+| GUEST-02 | Guest cost allocation follows `guestMealMode` from meal settings |
+| GUEST-03 | Guest records included in per-meal cost and monthly meal summary calculations |
+| PLAN-01 | Future dates: clicking a slot cycles `PLANNED` → `OPT_OUT` (skip) → unplanned |
+| PLAN-02 | Past and today use `isConfirmed` boolean; today defaults to confirmed unless opted out |
+| PLAN-03 | `planStatus` stored on `meal_records` for future planning state |
+
+---
+
+### 7.22 Monthly Import & Export
+
+| ID | Requirement |
+|---|---|
+| IMP-01 | Page path: `/import`; Excel template download and upload |
+| IMP-02 | Supports import and export modes for monthly data (bills, meals, expenses) |
+| IMP-03 | Upload validates file type (`.xlsx`) and size (max 10 MB) |
+| IMP-04 | Progress UI with validation feedback and per-sheet issue reporting |
+| IMP-05 | Admin or Bill Manager permission required for mutating imports |
+
+---
+
+### 7.23 Display Currency & User Guides
+
+**Display Currency**
+
+| ID | Requirement |
+|---|---|
+| CUR-01 | Admin configures display currency in Settings → Currency |
+| CUR-02 | Symmetric two-column UI: styled currency selector + live preview card |
+| CUR-03 | Preview shows flag, ISO code, formatted example amount, and currency name |
+| CUR-04 | Selected currency stored on `apartments.currency` (default `BDT`) |
+| CUR-05 | All monetary displays use `Intl.NumberFormat` with the selected currency's locale |
+
+**User Guides**
+
+| ID | Requirement |
+|---|---|
+| GUIDE-01 | Public routes under `/guides` — no apartment session required |
+| GUIDE-02 | Full user manual with sticky table of contents and back-to-landing navigation |
+| GUIDE-03 | Supplemental guides: bill-splitting formula, meal-rate calculator (EN + BN) |
+| GUIDE-04 | Linked from landing page nav and footer; included in sitemap |
 
 ---
 
@@ -1238,7 +1332,52 @@ audit_events (
 )
 ```
 
-### 9.17 `member_sessions` (Token Blocklist)
+### 9.18 `expense_plans` & `expense_plan_items`
+
+```sql
+expense_plans (
+  id              UUID PRIMARY KEY,
+  apartment_id    UUID NOT NULL REFERENCES apartments(id),
+  month_key       VARCHAR(7) NOT NULL,
+  category        VARCHAR(40) NOT NULL,
+  UNIQUE(apartment_id, month_key, category)
+)
+
+expense_plan_items (
+  id              UUID PRIMARY KEY,
+  plan_id         UUID NOT NULL REFERENCES expense_plans(id),
+  item_name       VARCHAR(80) NOT NULL,
+  unit            VARCHAR(20) DEFAULT 'pcs',
+  quantity        INTEGER DEFAULT 1,
+  unit_price      INTEGER NOT NULL,
+  total_price     INTEGER NOT NULL,
+  sort_order      INTEGER DEFAULT 0
+)
+```
+
+### 9.19 `guest_meal_records`
+
+```sql
+guest_meal_records (
+  id              UUID PRIMARY KEY,
+  apartment_id    UUID NOT NULL,
+  member_id       UUID NOT NULL,  -- host member
+  meal_date       DATE NOT NULL,
+  meal_slot       INTEGER NOT NULL,
+  guest_count     INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(apartment_id, member_id, meal_date, meal_slot)
+)
+```
+
+`meal_records` includes optional `plan_status` enum (`PLANNED`, `OPT_OUT`) for future-date planning.
+
+`apartments` includes optional `currency` VARCHAR(5) for display formatting (default `BDT`).
+
+`meal_config` includes `guest_meal_mode` enum (`EQUAL_SPLIT`, `HOST_PAYS`).
+
+---
+
+### 9.20 `member_sessions` (Token Blocklist)
 
 ```sql
 member_sessions (
@@ -1333,7 +1472,8 @@ All API routes are under `/api/`. Apartment session cookie (`apt_session`) is re
 |---|---|---|---|
 | GET | `/api/meals/[monthKey]` | Apt session | Get all meal data for a month |
 | GET | `/api/meals/[monthKey]/checklist` | Apt session | Get weekly checklist data |
-| PATCH | `/api/meals/[monthKey]/checklist` | Admin or BM | Toggle a meal slot |
+| PATCH | `/api/meals/[monthKey]/checklist` | Admin or BM | Toggle a meal slot / set plan status |
+| PATCH | `/api/meals/[monthKey]/guests` | Admin or BM | Upsert or delete guest meal record |
 | GET | `/api/meals/[monthKey]/shopping` | Apt session | Get shopping entries for a month |
 | POST | `/api/meals/[monthKey]/shopping` | Member session | Add a shopping entry |
 | DELETE | `/api/meals/[monthKey]/shopping/[id]` | Member session (own) / Admin-BM | Delete a shopping entry |
@@ -1350,21 +1490,37 @@ All API routes are under `/api/`. Apartment session cookie (`apt_session`) is re
 | PATCH | `/api/expenses/[monthKey]/[id]` | Member session (own) / Admin | Update an expense item |
 | DELETE | `/api/expenses/[monthKey]/[id]` | Member session (own) / Admin | Delete an expense item |
 
-### 10.9 Dashboard
+### 10.9 Expense Plans
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/expense-plans/[monthKey]` | Apt session | Get all category plans and totals for a month |
+| POST | `/api/expense-plans/[monthKey]` | Member with `edit_any_expense` | Add a plan line item |
+| PATCH | `/api/expense-plans/[monthKey]/[id]` | Member with `edit_any_expense` | Update a plan line item |
+| DELETE | `/api/expense-plans/[monthKey]/[id]` | Member with `edit_any_expense` | Delete a plan line item |
+
+### 10.10 Import
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/import/template` | Apt session | Download Excel import template |
+| POST | `/api/import/export` | Apt session | Export monthly data to Excel |
+
+### 10.11 Dashboard
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/api/dashboard/year-summary` | Apt session | Get full year data for charts |
 | GET | `/api/dashboard/current-month` | Apt session | Get current month bill + meal snapshot |
 
-### 10.10 Backup
+### 10.12 Backup
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/api/backup/export` | Admin | Export full backup JSON |
 | POST | `/api/backup/restore` | Admin | Import and restore a backup JSON |
 
-### 10.11 Danger Zone
+### 10.13 Danger Zone
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
@@ -1763,6 +1919,6 @@ All inputs are validated **both client-side** (real-time, per-field) and **serve
 
 ---
 
-> **Document Control:** This BRD v2.0 supersedes v1.0 and represents the complete, authoritative specification for the **LocalHost** Apartment Bill Sharing Application. It is optimized for implementation in Next.js with a PostgreSQL database. Any deviation from these requirements during development must be validated against the Business Objectives in Section 2 and the Acceptance Criteria in Section 18.
+> **Document Control:** This BRD v2.1 supersedes v2.0 and represents the complete, authoritative specification for the **LocalHost** Apartment Bill Sharing Application. It is optimized for implementation in Next.js with a PostgreSQL database. Any deviation from these requirements during development must be validated against the Business Objectives in Section 2 and the Acceptance Criteria in Section 18.
 
 > **AI Implementation Note:** This document is self-contained. All calculation examples (Section 12), schema definitions (Section 9), API routes (Section 10), and validation rules (Section 16) are sufficient to implement the system without additional context. Start with the database schema (Section 9), then implement auth (Sections 7.1–7.2), then build features in the order listed in Section 7.

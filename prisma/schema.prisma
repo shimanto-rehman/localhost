@@ -30,9 +30,11 @@ model Apartment {
   createdAt                    DateTime                      @default(now()) @map("created_at")
   updatedAt                    DateTime                      @updatedAt @map("updated_at")
   rolePermissions              Json?                         @map("role_permissions")
+  currency                     String?                       @default("BDT") @db.VarChar(5)
   apartmentJobRuns             ApartmentJobRun[]
   apartmentPasswordResetTokens ApartmentPasswordResetToken[]
   auditEvents                  AuditEvent[]
+  expensePlans                 ExpensePlan[]
   expenses                     Expense[]
   fixedCosts                   FixedCost[]
   guestMealRecords             GuestMealRecord[]
@@ -332,6 +334,38 @@ model Expense {
   @@index([apartmentId, monthKey])
   @@index([memberId])
   @@map("expenses")
+}
+
+model ExpensePlan {
+  id          String            @id @default(uuid()) @db.Uuid
+  apartmentId String            @map("apartment_id") @db.Uuid
+  monthKey    String            @map("month_key") @db.VarChar(7)
+  category    String            @db.VarChar(40)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  items       ExpensePlanItem[]
+  apartment   Apartment         @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  @@unique([apartmentId, monthKey, category])
+  @@index([apartmentId, monthKey])
+  @@map("expense_plans")
+}
+
+model ExpensePlanItem {
+  id         String      @id @default(uuid()) @db.Uuid
+  planId     String      @map("plan_id") @db.Uuid
+  itemName   String      @map("item_name") @db.VarChar(80)
+  unit       String      @default("pcs") @db.VarChar(20)
+  quantity   Int         @default(1)
+  unitPrice  Int         @map("unit_price")
+  totalPrice Int         @map("total_price")
+  sortOrder  Int         @default(0) @map("sort_order")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  plan       ExpensePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("expense_plan_items")
 }
 
 model PasswordResetToken {

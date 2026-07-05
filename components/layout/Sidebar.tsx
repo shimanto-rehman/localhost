@@ -15,6 +15,7 @@ const NAV = [
   { href: '/bills', label: 'Monthly Bills', icon: 'bills' },
   { href: '/meals', label: 'Meal Management', icon: 'meals' },
   { href: '/expenses', label: 'Expenses', icon: 'expenses' },
+  { href: '/expense-plan', label: 'Expense Plan', icon: 'plan' },
   { href: '/import', label: 'Monthly Import', icon: 'upload' },
   { href: '/settings', label: 'Configuration', icon: 'settings' },
 ];
@@ -41,6 +42,13 @@ function NavIcon({ type }: { type: string }) {
   if (type === 'expenses') return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  );
+  if (type === 'plan') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <path d="M9 14l2 2 4-4" />
     </svg>
   );
   if (type === 'upload') return (
